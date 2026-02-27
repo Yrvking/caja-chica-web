@@ -1220,17 +1220,18 @@
         function renderObrasDropdowns() {
             const obraSelect = el('obra-select');
             const filterObra = el('filter-obra');
-            if (!areas) return;
-            const optionsHtml = areas.map(a => `<option value="${a.id}">${a.nombre || a.id}</option>`).join('');
+            const proyectos = currentUserData?.proyectos || [];
+            if (!proyectos) return;
+            const optionsHtml = proyectos.map(p => `<option value="${p}">${p}</option>`).join('');
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
-                obraSelect.innerHTML = '<option value="">-- Seleccionar Área/Proyecto --</option>' + optionsHtml;
+                obraSelect.innerHTML = '<option value="">-- Seleccionar Proyecto --</option>' + optionsHtml;
                 obraSelect.value = currentVal;
             }
             if (filterObra) {
                 const currentVal = filterObra.value;
-                filterObra.innerHTML = '<option value="">Todas las Áreas/Proyectos</option>' + optionsHtml;
+                filterObra.innerHTML = '<option value="">Todos los Proyectos</option>' + optionsHtml;
                 filterObra.value = currentVal;
             }
         }
@@ -1555,12 +1556,11 @@
             const obraId = obraSelect ? obraSelect.value : null;
 
             if (!obraId) {
-                alert("Debe seleccionar un Área/Obra para iniciar la caja chica.");
+                alert("Debe seleccionar un Proyecto para iniciar la caja chica.");
                 return;
             }
 
-            const selectedArea = areas.find(a => a.id === obraId);
-            const obraNombre = selectedArea ? (selectedArea.nombre || selectedArea.id) : 'Desconocida';
+            const obraNombre = obraId;
 
             if (amount > 0 && !activePettyCash) {
                 toggleLoading(true);
