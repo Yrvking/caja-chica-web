@@ -1,0 +1,9 @@
+{
+  "name": "caja-chica-web",
+  "version": "1.0.0",
+  "description": "Sistema de Caja Chica v2",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

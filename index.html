@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Caja Chica v2</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --primary: #0d6efd;
+            --primary-600: #0b5ed7;
+            --ink: #212529;
+            --muted: #6c757d;
+            --line: #dee2e6;
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --chip: #e9ecef;
+            --ok: #198754;
+            --bad: #dc3545;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 1400px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .who {
+            font-size: .92rem;
+            color: var(--muted);
+        }
+
+        .btn {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn.primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn.primary:not(:disabled):hover {
+            background: var(--primary-600);
+        }
+
+        .btn.ghost {
+            background: #fff;
+            border: 1px solid var(--line);
+            color: var(--ink);
+        }
+
+        .btn.ghost:hover {
+            background: var(--bg);
+        }
+
+        .btn.danger {
+            background: var(--bad);
+            color: #fff;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .icon-btn {
+            background: transparent;
+            padding: 4px;
+            color: var(--muted);
+        }
+
+        .icon-btn:hover {
+            color: var(--ink);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 10px 16px;
+            border: none;
+            background: transparent;
+            border-bottom: 2px solid transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, .05);
+            margin-bottom: 16px;
+            border: 1px solid var(--line);
+        }
+
+        .card-h {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .card-h b {
+            font-size: 1.1rem;
+        }
+
+        .card-b {
+            padding: 20px;
+        }
+
+        .brand {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            padding: 12px 20px;
+            background-color: var(--chip);
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .brand img {
+            max-height: 42px;
+            border-radius: 4px;
+        }
+
+        .cinfo {
+            font-size: .86rem;
+            color: var(--muted);
+            text-align: right;
+            line-height: 1.45;
+        }
+
+        .cinfo b {
+            color: var(--ink);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            margin: 0 0 6px;
+            font-weight: 600;
+            font-size: .9rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-size: .95rem;
+        }
+
+        .summary-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary-box {
+            background-color: var(--card);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid var(--line);
+        }
+
+        .summary-box h3 {
+            margin-top: 0;
+            font-size: 16px;
+            color: var(--muted);
+        }
+
+        .summary-box p {
+            margin-bottom: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .summary-box input[type="number"] {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            max-width: 150px;
+        }
+
+        #balance.positive {
+            color: var(--ok);
+        }
+
+        #balance.negative {
+            color: var(--bad);
+        }
+
+        .actions-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .data-table th,
+        .data-table td {
+            border-bottom: 1px solid var(--line);
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        .data-table th {
+            background-color: var(--bg);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        .data-table input,
+        .data-table select {
+            width: 100%;
+            min-width: 100px;
+            padding: 5px;
+            box-sizing: border-box;
+            font-size: 13px;
+            border-radius: 6px;
+            border: 1px solid var(--line);
+        }
+
+        .data-table .read-only-input {
+            background-color: transparent;
+            border: none;
+            padding-left: 0;
+            pointer-events: none;
+        }
+
+        .collapsible-content.collapsed {
+            display: none;
+        }
+
+        .toggle-collapse {
+            cursor: pointer;
+            user-select: none;
+            font-weight: normal;
+            font-size: 0.8rem;
+            color: var(--primary);
+        }
+
+        .login-overlay,
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .login-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 22px 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <div class="app">
+        <div class="topbar">
+            <div id="who" class="who">No autenticado</div>
+            <button id="btn-logout" class="btn ghost" style="display:none">Cerrar Sesión</button>
+        </div>
+
+        <div id="app-content" style="display:none">
+            <div class="tabs">
+                <button class="tab active" data-view="caja-chica">Caja Chica</button>
+                <button class="tab" data-view="history">Historial</button>
+                <button id="tab-admin" class="tab" data-view="settings" style="display:none">Ajustes</button>
+            </div>
+
+            <div id="caja-chica-view" class="view active">
+                <div id="brand-header" class="brand">
+                    <div style="flex-grow: 1;">
+                        <h2 id="caja-chica-number" style="margin: 0; font-size: 1.2rem;"></h2>
+                        <p id="caja-chica-status" style="margin: 4px 0 0; font-weight: 600;"></p>
+                        <p id="caja-chica-obra-info"
+                            style="margin: 4px 0 0; font-size: 0.9rem; color: var(--primary); font-weight: bold;"></p>
+                    </div>
+                    <img id="company-logo" alt="Logo" style="display:none;">
+                    <div id="company-info" class="cinfo"></div>
+                </div>
+                <div class="summary-container">
+                    <div class="summary-box">
+                        <h3>MONTO INICIAL</h3>
+                        <div style="display:flex; flex-direction: column; align-items:center; gap:10px;">
+                            <select id="obra-select"
+                                style="padding: 8px; border-radius: 5px; border: 1px solid #ccc; width: 100%; max-width: 250px;">
+                                <option value="">-- Seleccionar Obra --</option>
+                            </select>
+                            <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+                                <span>S/</span>
+                                <input type="number" id="initial-amount-input" value="0.00" step="0.01">
+                                <button id="save-initial-amount-btn" class="btn primary btn-sm">Iniciar Caja</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="summary-box">
+                        <h3>TOTAL GASTADO</h3>
+                        <p id="total-expenses">S/ 0.00</p>
+                    </div>
+                    <div class="summary-box">
+                        <h3>SALDO</h3>
+                        <p id="balance" class="positive">S/ 0.00</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-h"><b>Registro de Gastos</b></div>
+                    <div class="card-b">
+                        <div class="actions-container">
+                            <button id="xml-btn" class="btn ghost">Extraer de XML</button>
+                            <input type="file" id="xml-file-input" style="display: none;" accept=".xml" multiple>
+                            <button id="pdf-btn" class="btn ghost">Extraer de PDF</button>
+                            <input type="file" id="pdf-file-input" style="display: none;" accept=".pdf" multiple>
+                            <button id="add-manual-btn" class="btn primary">+ Agregar Gasto</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo Doc.</th>
+                                        <th>Serie-N°</th>
+                                        <th>RUC</th>
+                                        <th>Razón Social</th>
+                                        <th>PC</th>
+                                        <th>Descripción</th>
+                                        <th>Subtotal</th>
+                                        <th>IGV</th>
+                                        <th>Total</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expenses-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="actions-container" style="justify-content: flex-end;">
+                    <button id="btn-close-box" class="btn danger" disabled>Cerrar y Liquidar Caja</button>
+                </div>
+            </div>
+
+            <div id="history-view" class="view">
+                <div class="card">
+                    <div class="card-h"><b>Filtros de Historial</b></div>
+                    <div class="card-b" style="padding-bottom:10px;">
+                        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                            <div class="form-group"><label>Obra</label><select id="filter-obra">
+                                    <option value="">Todas las Obras</option>
+                                </select></div>
+                            <div class="form-group"><label>Responsable</label><select id="filter-responsable">
+                                    <option value="">Todos los Responsables</option>
+                                </select></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-container" id="history-summary" style="display:none;">
+                    <div class="summary-box">
+                        <h3>TOTAL ASIGNADO</h3>
+                        <p id="hist-total-asignado">S/ 0.00</p>
+                    </div>
+                    <div class="summary-box">
+                        <h3>TOTAL GASTADO</h3>
+                        <p id="hist-total-gastado">S/ 0.00</p>
+                    </div>
+                    <div class="summary-box">
+                        <h3>SALDO FINAL</h3>
+                        <p id="hist-saldo-final">S/ 0.00</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-h"><b>Historial de Cajas Chicas</b></div>
+                    <div style="overflow-x:auto;" class="card-b">
+                        <table class="data-table" id="history-table" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Caja N°</th>
+                                    <th>Fecha Cierre</th>
+                                    <th>Obra</th>
+                                    <th>Responsable</th>
+                                    <th>Asignado</th>
+                                    <th>Gastado</th>
+                                    <th>Saldo</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body"></tbody>
+                        </table>
+                        <p id="history-empty-msg">Aún no hay cajas cerradas.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settings-view" class="view">
+                <div class="card">
+                    <div class="card-h"><b>Obras (Proyectos)</b><span class="toggle-collapse"
+                            data-target="obr-content">[Contraer]</span></div>
+                    <div id="obr-content" class="collapsible-content card-b">
+                        <div class="grid">
+                            <input type="text" id="new-obra-codigo" placeholder="Código de Obra">
+                            <input type="text" id="new-obra-nombre" placeholder="Nombre / Descripción">
+                        </div>
+                        <div class="actions-container" style="margin-top:10px;"><button id="add-obra-btn"
+                                class="btn primary">+ Agregar Obra</button></div>
+                        <div style="overflow-x:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="obras-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-h"><b>Empresas</b><span class="toggle-collapse"
+                            data-target="emp-content">[Contraer]</span></div>
+                    <div id="emp-content" class="collapsible-content card-b">
+                        <div class="grid">
+                            <input type="text" id="new-empresa-ruc" placeholder="RUC (11 dígitos)">
+                            <input type="text" id="new-empresa-nombre" placeholder="Razón Social">
+                        </div>
+                        <div class="actions-container" style="margin-top:10px;"><button id="add-empresa-btn"
+                                class="btn primary">+ Agregar Empresa</button></div>
+                        <div style="overflow-x:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>RUC</th>
+                                        <th>Razón Social</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="empresas-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-h"><b>Partidas Contables (PC)</b><span class="toggle-collapse"
+                            data-target="pc-content">[Contraer]</span></div>
+                    <div id="pc-content" class="collapsible-content card-b">
+                        <div class="grid">
+                            <div>
+                                <h4>Agregar Manualmente</h4>
+                                <div class="form-group"><label for="new-pc-code">Código PC</label><input type="text"
+                                        id="new-pc-code"></div>
+                                <div class="form-group"><label for="new-pc-description">Descripción</label><input
+                                        type="text" id="new-pc-description"></div>
+                                <button id="add-pc-btn" class="btn primary">Agregar PC</button>
+                            </div>
+                            <div>
+                                <h4>Importación Masiva</h4>
+                                <p style="font-size: 0.9rem; color: var(--muted); margin-top: 0;">Sube un archivo Excel
+                                    (.xlsx) con las columnas "codigo" y "descripcion" para cargar todas tus PCs de una
+                                    sola vez.</p>
+                                <div class="actions-container">
+                                    <button id="download-template-btn" class="btn ghost">Descargar Plantilla</button>
+                                    <button id="import-pc-btn" class="btn primary">Importar desde Plantilla</button>
+                                    <input type="file" id="pc-file-input" style="display: none;" accept=".xlsx">
+                                </div>
+                            </div>
+                        </div>
+                        <hr style="margin: 20px 0;">
+                        <h4>Listado de Partidas de Control</h4>
+                        <div style="overflow-x:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Descripción</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pc-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-h"><b>Usuarios</b><span class="toggle-collapse"
+                            data-target="usr-content">[Contraer]</span></div>
+                    <div id="usr-content" class="collapsible-content card-b">
+                        <div style="overflow-x:auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Email</th>
+                                        <th>Empresa</th>
+                                        <th>Rol</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-card">
+            <h3>Sistema de Caja Chica</h3>
+            <div class="form-group"><label for="login-email">Email</label><input type="email" id="login-email"></div>
+            <div class="form-group" style="margin-top:8px"><label for="login-pass">Clave</label><input type="password"
+                    id="login-pass"></div>
+            <div id="login-error" style="color:var(--bad); font-size:0.8rem; margin-top:8px; display:none;"></div>
+            <div class="actions-container" style="justify-content: flex-end; margin-top: 16px;"><button id="btn-login"
+                    class="btn primary">Iniciar Sesión</button></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5XMV9qLNrD2A-79XvkwIvoWbjuhqWBGw",
+            authDomain: "planilla-webg.firebaseapp.com",
+            projectId: "planilla-webg",
+            storageBucket: "planilla-webg.firebasestorage.app",
+            messagingSenderId: "578000078503",
+            appId: "1:578000078503:web:6b04f45024a8c306f4bd82"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUserData, empresas = [], obras = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
+        let listeners = [];
+
+        const el = (id) => document.getElementById(id);
+        const toggleLoading = (show) => el('loading-overlay').style.display = show ? 'flex' : 'none';
+
+        onAuthStateChanged(auth, async (user) => {
+            toggleLoading(true);
+            cleanupListeners();
+            if (user) {
+                const userDocSnap = await getDoc(doc(db, "users", user.uid));
+                if (userDocSnap.exists()) {
+                    currentUserData = { uid: user.uid, email: user.email, ...userDocSnap.data() };
+                    el('who').textContent = `Conectado: ${currentUserData.nombres || currentUserData.email}`;
+                    el('app-content').style.display = 'block';
+                    el('login-overlay').style.display = 'none';
+                    el('btn-logout').style.display = 'inline-block';
+                    setupListeners();
+                } else {
+                    alert("Perfil de usuario no encontrado en la base de datos central. Contacte al administrador.");
+                    await signOut(auth);
+                }
+            } else {
+                currentUserData = null;
+                el('who').textContent = 'No autenticado';
+                el('app-content').style.display = 'none';
+                el('login-overlay').style.display = 'flex';
+                el('btn-logout').style.display = 'none';
+            }
+            toggleLoading(false);
+        });
+
+        function setupListeners() {
+            const isAdmin = currentUserData.rol === 'ADMIN';
+            el('tab-admin').style.display = isAdmin ? 'block' : 'none';
+
+            listeners.push(onSnapshot(collection(db, "partidasContables"), s => {
+                partidasContables = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (isAdmin) renderPCTable();
+            }));
+
+            listeners.push(onSnapshot(query(collection(db, "empresas")), s => {
+                empresas = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                updateHeaderInfo();
+                if (isAdmin) {
+                    renderEmpresasTable();
+                    if (usuarios.length > 0) renderUsersTable();
+                }
+            }));
+
+            listeners.push(onSnapshot(query(collection(db, "obras")), s => {
+                obras = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderObrasDropdowns();
+                if (isAdmin) renderObrasTable();
+            }));
+
+            listeners.push(onSnapshot(query(collection(db, "cajasChicasHistorial"), orderBy("closedAt", "desc")), s => {
+                historyBoxes = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderHistoryView();
+                updateHistoryFilters();
+            }));
+
+            if (isAdmin) {
+                listeners.push(onSnapshot(collection(db, "users"), s => {
+                    usuarios = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                    renderUsersTable();
+                }));
+            }
+
+            const pettyCashRef = doc(db, "cajasChicasActivas", currentUserData.uid);
+            listeners.push(onSnapshot(pettyCashRef, docSnap => {
+                activePettyCash = docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                updateActiveBoxUI();
+
+                if (activePettyCash) {
+                    const expensesRef = collection(pettyCashRef, "expenses");
+                    const q = query(expensesRef, orderBy("createdAt", "desc"));
+                    const unsubExpenses = onSnapshot(q, s => {
+                        expenses = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                        renderExpensesTable();
+                    }, error => console.error("Error escuchando gastos:", error));
+                    listeners.push(unsubExpenses);
+                } else {
+                    expenses = [];
+                    renderExpensesTable();
+                }
+            }, error => console.error("Error escuchando caja chica activa:", error)));
+        }
+
+        function cleanupListeners() { listeners.forEach(unsub => unsub()); listeners = []; }
+
+        function updateHeaderInfo() {
+            if (!currentUserData?.empresaId || empresas.length === 0) return;
+            const empresa = empresas.find(e => e.id === currentUserData.empresaId);
+            if (empresa) {
+                el('company-logo').src = empresa.logoBase64 || '';
+                el('company-logo').style.display = empresa.logoBase64 ? 'block' : 'none';
+                el('company-info').innerHTML = `<b>${empresa.nombre || empresa.razon}</b><br>R.U.C. ${empresa.ruc}`;
+            }
+        }
+
+        function renderExpensesTable() {
+            const tbody = el('expenses-table-body');
+            tbody.innerHTML = '';
+            let pcOptions = partidasContables.map(pc => `<option value="${pc.id}">${pc.id} - ${pc.descripcion || ''}</option>`).join('');
+
+            expenses.forEach(expense => {
+                const row = document.createElement('tr');
+                row.dataset.id = expense.id;
+                const expenseDate = expense.date?.seconds ? new Date(expense.date.seconds * 1000).toISOString().split('T')[0] : '';
+
+                row.innerHTML = `
+                <td><input type="date" data-field="date" value="${expenseDate}"></td>
+                <td><select data-field="type">
+                    <option value="BOLETA" ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
+                    <option value="FACTURA" ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
+                    <option value="RXH" ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
+                    <option value="NOTA DE CREDITO" ${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>Nota de Crédito</option>
+                    <option value="MOVILIDAD" ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movilidad</option>
+                    <option value="OTRO" ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
+                </select></td>
+                <td><input type="text" data-field="seriesNumber" value="${expense.seriesNumber || ''}"></td>
+                <td><input type="text" data-field="ruc" value="${expense.ruc || ''}"></td>
+                <td><input type="text" data-field="name" value="${expense.name || ''}"></td>
+                <td><select data-field="pc"><option value="">Seleccione...</option>${pcOptions}</select></td>
+                <td><input type="text" data-field="description" value="${expense.description || ''}"></td>
+                <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}"></td>
+                <td><input type="number" data-field="igv" value="${(expense.igv || 0).toFixed(2)}" disabled></td>
+                <td><input type="number" data-field="total" value="${(expense.total || 0).toFixed(2)}"></td>
+                <td><button class="btn danger btn-sm icon-btn" data-action="delete-expense">🗑️</button></td>`;
+
+                row.querySelector(`[data-field="pc"]`).value = expense.pc || '';
+                tbody.appendChild(row);
+            });
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const totalExpenses = expenses.reduce((sum, exp) => {
+                const amount = exp.total || 0;
+                return exp.type === 'NOTA DE CREDITO' ? sum - amount : sum + amount;
+            }, 0);
+
+            const initialAmount = activePettyCash?.initialAmount || 0;
+            const balance = initialAmount - totalExpenses;
+            el('total-expenses').textContent = `S/ ${totalExpenses.toFixed(2)}`;
+            el('balance').textContent = `S/ ${balance.toFixed(2)}`;
+            el('balance').className = balance >= 0 ? 'positive' : 'negative';
+        }
+
+        function renderPCTable() {
+            const tbody = el('pc-table-body');
+            tbody.innerHTML = '';
+            partidasContables.forEach(pc => {
+                const row = document.createElement('tr');
+                row.dataset.id = pc.id;
+                row.innerHTML = `
+                <td>${pc.id}</td>
+                <td><input class="pc-description" value="${pc.descripcion || ''}"></td>
+                <td>
+                    <button class="btn primary btn-sm" data-action="save-pc">Guardar</button>
+                    <button class="btn danger btn-sm" data-action="delete-pc">Eliminar</button>
+                </td>
+            `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function renderEmpresasTable() {
+            const tbody = el('empresas-table-body');
+            tbody.innerHTML = '';
+            empresas.forEach(emp => {
+                tbody.innerHTML += `<tr data-id="${emp.id}"><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><td><button class="btn danger btn-sm" data-action="delete-empresa">Eliminar</button></td></tr>`;
+            });
+        }
+
+        function renderUsersTable() {
+            const tbody = el('users-table-body');
+            tbody.innerHTML = '';
+            usuarios.forEach(user => {
+                const row = document.createElement('tr');
+                row.dataset.id = user.id;
+                const empresaOptions = empresas.map(e => `<option value="${e.id}" ${e.id === user.empresaId ? 'selected' : ''}>${e.nombre || e.razon}</option>`).join('');
+
+                row.innerHTML = `
+                <td><input class="user-nombres read-only-input" value="${user.nombres || '(Sin Nombre)'}" readonly></td>
+                <td><span class="user-email-display">${user.email || '(Sin Email)'}</span></td>
+                <td><select class="user-empresa" disabled><option value="">Ninguna</option>${empresaOptions}</select></td>
+                <td><select class="user-rol" disabled><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option></select></td>
+                <td class="actions-cell">
+                    <div class="edit-mode-btns" style="display: flex; gap: 5px;">
+                        <button class="btn primary btn-sm" data-action="edit-user">Editar</button>
+                    </div>
+                    <div class="save-mode-btns" style="display: none; gap: 5px;">
+                        <button class="btn primary btn-sm" data-action="save-user">Guardar</button>
+                        <button class="btn ghost btn-sm" data-action="cancel-user">Cancelar</button>
+                    </div>
+                </td>
+            `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateActiveBoxUI() {
+            const initialAmountInput = el('initial-amount-input');
+            const saveInitialAmountBtn = el('save-initial-amount-btn');
+            const obraSelect = el('obra-select');
+            const obraInfo = el('caja-chica-obra-info');
+
+            if (activePettyCash) {
+                el('caja-chica-number').textContent = `Caja N° ${activePettyCash.cajaNumero}`;
+                el('caja-chica-status').textContent = 'Estado: ACTIVA';
+                el('caja-chica-status').style.color = 'var(--ok)';
+                if (obraInfo) obraInfo.textContent = activePettyCash.obraNombre ? `Obra: ${activePettyCash.obraNombre}` : '';
+
+                initialAmountInput.value = (activePettyCash.initialAmount || 0).toFixed(2);
+                initialAmountInput.disabled = true;
+                if (obraSelect) {
+                    obraSelect.value = activePettyCash.obraId || '';
+                    obraSelect.disabled = true;
+                    obraSelect.style.display = 'none';
+                }
+                saveInitialAmountBtn.style.display = 'none';
+                el('add-manual-btn').disabled = false;
+                el('xml-btn').disabled = false;
+                if (el('pdf-btn')) el('pdf-btn').disabled = false;
+                el('btn-close-box').disabled = false;
+            } else {
+                el('caja-chica-number').textContent = 'No hay caja chica activa';
+                el('caja-chica-status').textContent = 'Estado: CERRADA';
+                el('caja-chica-status').style.color = 'var(--muted)';
+                if (obraInfo) obraInfo.textContent = '';
+
+                initialAmountInput.value = '0.00';
+                initialAmountInput.disabled = false;
+                if (obraSelect) {
+                    obraSelect.disabled = false;
+                    obraSelect.style.display = 'block';
+                }
+                saveInitialAmountBtn.style.display = 'inline-flex';
+                el('add-manual-btn').disabled = true;
+                el('xml-btn').disabled = true;
+                if (el('pdf-btn')) el('pdf-btn').disabled = true;
+                el('btn-close-box').disabled = true;
+            }
+        }
+
+        el('btn-login').addEventListener('click', async () => {
+            const email = el('login-email').value;
+            const pass = el('login-pass').value;
+            const errorEl = el('login-error');
+            errorEl.style.display = 'none';
+            toggleLoading(true);
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+            } catch (error) {
+                errorEl.textContent = "Credenciales incorrectas. Verifique sus datos.";
+                errorEl.style.display = 'block';
+            }
+            toggleLoading(false);
+        });
+
+        el('btn-logout').addEventListener('click', () => signOut(auth));
+
+        document.querySelector('.tabs').addEventListener('click', e => {
+            if (e.target.matches('.tab')) {
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                el(`${e.target.dataset.view}-view`).classList.add('active');
+                e.target.classList.add('active');
+            }
+        });
+
+        document.querySelector('#app-content').addEventListener('click', e => {
+            if (e.target.matches('.toggle-collapse')) {
+                const targetId = e.target.dataset.target;
+                const content = el(targetId);
+                if (content) {
+                    content.classList.toggle('collapsed');
+                    e.target.textContent = content.classList.contains('collapsed') ? '[Expandir]' : '[Contraer]';
+                }
+            }
+        });
+
+        el('settings-view').addEventListener('click', async e => {
+            const action = e.target.dataset.action;
+            const row = e.target.closest('tr');
+            if (!row) return;
+
+            if (action === 'edit-user') {
+                row.querySelectorAll('select, .user-nombres').forEach(input => input.disabled = false);
+                row.querySelector('.user-nombres').classList.remove('read-only-input');
+                row.querySelector('.edit-mode-btns').style.display = 'none';
+                row.querySelector('.save-mode-btns').style.display = 'flex';
+                return;
+            }
+            if (action === 'cancel-user') {
+                renderUsersTable();
+                return;
+            }
+
+            toggleLoading(true);
+            try {
+                if (action === 'save-user') {
+                    const userId = row.dataset.id;
+                    const newName = row.querySelector('.user-nombres').value;
+                    const newRole = row.querySelector('.user-rol').value;
+                    const newEmpresaId = row.querySelector('.user-empresa').value;
+                    await updateDoc(doc(db, "users", userId), { nombres: newName, rol: newRole, empresaId: newEmpresaId });
+                    alert('Perfil de usuario actualizado.');
+                    renderUsersTable();
+                } else if (action === 'save-pc') {
+                    const newDescription = row.querySelector('.pc-description').value;
+                    await updateDoc(doc(db, "partidasContables", row.dataset.id), { descripcion: newDescription });
+                    alert("Descripción de PC actualizada.");
+                } else if (action === 'delete-pc') {
+                    if (confirm('¿Eliminar Partida Contable?')) await deleteDoc(doc(db, "partidasContables", row.dataset.id));
+                } else if (action === 'delete-empresa') {
+                    if (confirm('¿Eliminar Empresa?')) await deleteDoc(doc(db, "empresas", row.dataset.id));
+                }
+            } catch (error) {
+                console.error("Error en Ajustes:", error);
+                alert("Ocurrió un error.");
+            }
+            toggleLoading(false);
+        });
+
+        el('filter-obra')?.addEventListener('change', renderHistoryView);
+        el('filter-responsable')?.addEventListener('change', renderHistoryView);
+
+        el('add-obra-btn')?.addEventListener('click', async () => {
+            const codigo = el('new-obra-codigo').value.trim();
+            const nombre = el('new-obra-nombre').value.trim();
+            if (nombre) {
+                toggleLoading(true);
+                await addDoc(collection(db, 'obras'), { codigo, nombre, createdAt: serverTimestamp() });
+                el('new-obra-codigo').value = '';
+                el('new-obra-nombre').value = '';
+                toggleLoading(false);
+            } else {
+                alert('Por favor, ingrese el nombre de la obra.');
+            }
+        });
+
+        el('add-empresa-btn').addEventListener('click', async () => {
+            const ruc = el('new-empresa-ruc').value.trim();
+            const nombre = el('new-empresa-nombre').value.trim();
+            if (ruc && nombre && ruc.length === 11) {
+                toggleLoading(true);
+                await addDoc(collection(db, 'empresas'), { ruc, nombre, createdAt: serverTimestamp() });
+                el('new-empresa-ruc').value = '';
+                el('new-empresa-nombre').value = '';
+                toggleLoading(false);
+            } else {
+                alert('Por favor, ingrese un RUC válido (11 dígitos) y la Razón Social.');
+            }
+        });
+
+        el('add-pc-btn').addEventListener('click', async () => {
+            const codigo = el('new-pc-code').value.trim();
+            const descripcion = el('new-pc-description').value.trim();
+            if (codigo && descripcion) {
+                toggleLoading(true);
+                try {
+                    await setDoc(doc(db, 'partidasContables', codigo), { descripcion });
+                    el('new-pc-code').value = '';
+                    el('new-pc-description').value = '';
+                    alert(`Partida contable ${codigo} guardada.`);
+                } catch (error) {
+                    console.error("Error al agregar PC:", error);
+                    alert("No se pudo agregar la Partida Contable.");
+                } finally {
+                    toggleLoading(false);
+                }
+            } else {
+                alert('Por favor, ingrese código y descripción.');
+            }
+        });
+
+        el('download-template-btn').addEventListener('click', () => {
+            const data = [{ codigo: "63.1.1.1", descripcion: "GASTOS DE OFICINA" }];
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Plantilla PCs");
+            XLSX.writeFile(wb, "plantilla_partidas_contables.xlsx");
+        });
+
+        el('import-pc-btn').addEventListener('click', () => el('pc-file-input').click());
+
+        el('pc-file-input').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                toggleLoading(true);
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    if (jsonData.length === 0 || !jsonData[0].hasOwnProperty('codigo') || !jsonData[0].hasOwnProperty('descripcion')) {
+                        throw new Error("El archivo no tiene el formato correcto. Debe tener las columnas 'codigo' y 'descripcion'.");
+                    }
+                    const batch = writeBatch(db);
+                    let count = 0;
+                    jsonData.forEach(pc => {
+                        const codigo = String(pc.codigo).trim();
+                        const descripcion = String(pc.descripcion).trim();
+                        if (codigo && descripcion) {
+                            const docRef = doc(db, "partidasContables", codigo);
+                            batch.set(docRef, { descripcion });
+                            count++;
+                        }
+                    });
+                    await batch.commit();
+                    alert(`Se han importado/actualizado ${count} Partidas de Control exitosamente.`);
+                } catch (error) {
+                    console.error("Error al importar PCs:", error);
+                    alert("Error al importar el archivo: " + error.message);
+                } finally {
+                    toggleLoading(false);
+                    event.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        el('save-initial-amount-btn').addEventListener('click', async () => {
+            const amount = parseFloat(el('initial-amount-input').value);
+            const obraSelect = el('obra-select');
+            const obraId = obraSelect ? obraSelect.value : null;
+
+            if (!obraId) {
+                alert("Debe seleccionar una Obra para iniciar la caja chica.");
+                return;
+            }
+
+            const selectedObra = obras.find(o => o.id === obraId);
+            const obraNombre = selectedObra ? selectedObra.nombre : 'Desconocida';
+
+            if (amount > 0 && !activePettyCash) {
+                toggleLoading(true);
+                try {
+                    const counterRef = doc(db, "counters", "cajaChicaCounter");
+                    const newCajaNumero = await runTransaction(db, async (transaction) => {
+                        const counterDoc = await transaction.get(counterRef);
+                        const newCount = (counterDoc.exists() ? counterDoc.data().count : 0) + 1;
+                        transaction.set(counterRef, { count: newCount }, { merge: true });
+                        return `CCH-${String(newCount).padStart(4, '0')}`;
+                    });
+
+                    await setDoc(doc(db, "cajasChicasActivas", currentUserData.uid), {
+                        initialAmount: amount,
+                        cajaNumero: newCajaNumero,
+                        obraId: obraId,
+                        obraNombre: obraNombre,
+                        ownerId: currentUserData.uid,
+                        ownerName: currentUserData.nombres || currentUserData.email,
+                        empresaId: currentUserData.empresaId || null,
+                        status: 'active',
+                        createdAt: serverTimestamp()
+                    });
+                    alert(`Caja ${newCajaNumero} iniciada con S/ ${amount.toFixed(2)}`);
+                } catch (error) {
+                    console.error("Error al iniciar caja:", error);
+                    alert("No se pudo iniciar la caja. Asegúrese de tener permisos.");
+                } finally {
+                    toggleLoading(false);
+                }
+            }
+        });
+
+        el('expenses-table-body').addEventListener('change', async (e) => {
+            if (e.target.matches('input, select')) {
+                const row = e.target.closest('tr');
+                const expenseId = row.dataset.id;
+                const field = e.target.dataset.field;
+                let value = e.target.value;
+                if (e.target.type === 'date') value = e.target.valueAsDate;
+                if (e.target.type === 'number') value = parseFloat(value) || 0;
+                const updateData = { [field]: value };
+                if (field === 'total') {
+                    updateData.subtotal = value / 1.18;
+                    updateData.igv = value - updateData.subtotal;
+                } else if (field === 'subtotal') {
+                    updateData.igv = value * 0.18;
+                    updateData.total = value + updateData.igv;
+                }
+                try {
+                    await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", expenseId), updateData);
+                } catch (error) { console.error("Error al actualizar gasto:", error); }
+            }
+        });
+
+        el('expenses-table-body').addEventListener('click', async e => {
+            if (e.target.matches('[data-action="delete-expense"]')) {
+                const row = e.target.closest('tr');
+                if (confirm('¿Eliminar este gasto?')) {
+                    toggleLoading(true);
+                    await deleteDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", row.dataset.id));
+                    toggleLoading(false);
+                }
+            }
+        });
+
+        el('add-manual-btn').addEventListener('click', async () => {
+            if (!activePettyCash) return;
+            toggleLoading(true);
+            try {
+                await addDoc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"), {
+                    date: serverTimestamp(), type: 'OTRO', seriesNumber: '', ruc: '', name: '', pc: '',
+                    description: '', subtotal: 0, igv: 0, total: 0, createdAt: serverTimestamp()
+                });
+            } catch (error) { console.error("Error al agregar fila:", error); alert("No se pudo agregar la fila."); }
+            toggleLoading(false);
+        });
+
+        async function closePettyCash() {
+            if (!activePettyCash || !confirm("¿Está seguro de que desea cerrar y liquidar esta caja chica? Esta acción no se puede deshacer.")) return;
+            toggleLoading(true);
+            try {
+                const batch = writeBatch(db);
+                const historyRef = doc(collection(db, "cajasChicasHistorial"));
+                const finalData = {
+                    ...activePettyCash,
+                    status: 'CERRADA',
+                    closedAt: serverTimestamp(),
+                    totalGastado: expenses.reduce((sum, exp) => sum + exp.total, 0)
+                };
+                batch.set(historyRef, finalData);
+                expenses.forEach(exp => {
+                    const newExpenseRef = doc(collection(historyRef, "expenses"), exp.id);
+                    batch.set(newExpenseRef, exp);
+                });
+                const oldPettyCashRef = doc(db, "cajasChicasActivas", currentUserData.uid);
+                batch.delete(oldPettyCashRef);
+                await batch.commit();
+                alert(`Caja ${activePettyCash.cajaNumero} cerrada y enviada al historial.`);
+            } catch (error) {
+                console.error("Error al cerrar caja:", error);
+                alert("Ocurrió un error al cerrar la caja.");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+        el('btn-close-box').addEventListener('click', closePettyCash);
+
+        // --- NUEVA LÓGICA PARA EXTRACCIÓN DE XML ---
+        el('xml-btn').addEventListener('click', () => el('xml-file-input').click());
+        el('xml-file-input').addEventListener('change', handleXmlFiles);
+
+        async function handleXmlFiles(event) {
+            const files = event.target.files;
+            if (files.length === 0 || !activePettyCash) return;
+            toggleLoading(true);
+            let processedCount = 0;
+            const batch = writeBatch(db);
+
+            for (const file of files) {
+                try {
+                    const xmlString = await file.text();
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlString, "application/xml");
+
+                    const getNodeText = (selectors) => {
+                        for (const selector of selectors) {
+                            const node = xmlDoc.querySelector(selector.replace(/:/g, '\\:'));
+                            if (node) return node.textContent.trim();
+                        }
+                        return '';
+                    };
+
+                    const idNode = getNodeText(['Invoice > cbc\\:ID', 'CreditNote > cbc\\:ID', 'Retention > cbc\\:ID']);
+
+                    let expenseData = {
+                        date: new Date(getNodeText(['Invoice > cbc\\:IssueDate', 'CreditNote > cbc\\:IssueDate', 'Retention > cbc\\:IssueDate'])),
+                        seriesNumber: idNode,
+                        ruc: getNodeText(['AccountingSupplierParty > Party > PartyIdentification > cbc\\:ID', 'AccountingSupplierParty > cbc\\:CustomerAssignedAccountID', 'AgentParty > PartyIdentification > cbc\\:ID']),
+                        name: getNodeText(['AccountingSupplierParty > Party > PartyLegalEntity > cbc\\:RegistrationName', 'AccountingSupplierParty > Party > PartyName > cbc\\:Name', 'AgentParty > PartyLegalEntity > cbc\\:RegistrationName']),
+                        description: getNodeText(['InvoiceLine > Item > cbc\\:Description', 'CreditNoteLine > Item > cbc\\:Description', 'InvoiceLine > cbc\\:Note']),
+                        subtotal: parseFloat(getNodeText(['LegalMonetaryTotal > cbc\\:LineExtensionAmount', 'Retention > cbc\\:TotalInvoiceAmount'])) || 0,
+                        igv: parseFloat(getNodeText(['TaxTotal > cbc\\:TaxAmount'])) || 0,
+                        total: parseFloat(getNodeText(['LegalMonetaryTotal > cbc\\:PayableAmount', 'Retention > cbc\\:TotalInvoiceAmount'])) || 0,
+                        type: xmlDoc.querySelector('CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
+                        pc: '',
+                        createdAt: serverTimestamp()
+                    };
+
+                    const taxCategory = xmlDoc.querySelector("InvoiceLine > TaxTotal > TaxSubtotal > TaxCategory > cbc\\:ID");
+                    if ((taxCategory && taxCategory.textContent.includes('RET 4TA')) || xmlDoc.querySelector('Retention')) {
+                        expenseData.type = 'RXH';
+                        expenseData.subtotal = expenseData.total;
+                        expenseData.igv = 0;
+                    }
+
+                    if (expenseData.total !== 0 && expenseData.date && expenseData.ruc) {
+                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                        batch.set(newExpenseRef, expenseData);
+                        processedCount++;
+                    }
+
+                } catch (error) {
+                    console.error(`Error procesando el archivo ${file.name}:`, error);
+                }
+            }
+
+            try {
+                await batch.commit();
+                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`);
+                else alert("No se pudieron procesar los archivos XML. Verifique el formato.");
+            } catch (error) {
+                console.error("Error al guardar gastos de XML:", error);
+                alert("Ocurrió un error al guardar los gastos en la base de datos.");
+            }
+
+            toggleLoading(false);
+            event.target.value = '';
+        }
+
+        // --- EXTRACCIÓN DE PDF ---
+        el('pdf-btn').addEventListener('click', () => el('pdf-file-input').click());
+        el('pdf-file-input').addEventListener('change', handlePdfFiles);
+
+        async function handlePdfFiles(event) {
+            const files = event.target.files;
+            if (files.length === 0 || !activePettyCash) return;
+            toggleLoading(true);
+            let processedCount = 0;
+            const batch = writeBatch(db);
+
+            for (const file of files) {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let fullText = '';
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map(item => item.str).join(' ') + ' ';
+                    }
+
+                    // regex extraction
+                    const rucMatch = fullText.match(/\b(20|10)\d{9}\b/);
+                    let seriesMatch = fullText.match(/\b([FBE][0-9A-Z]{3}-\d+)\b/);
+                    const dateMatch = fullText.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/) || fullText.match(/\b(\d{4}[\/\-]\d{2}[\/\-]\d{2})\b/);
+
+                    let ruc = rucMatch ? rucMatch[0] : '';
+                    let seriesNumber = seriesMatch ? seriesMatch[1] : '';
+                    let isRxH = fullText.toUpperCase().includes('RECIBO POR HONORARIOS') || (seriesNumber && seriesNumber.startsWith('E'));
+                    let type = isRxH ? 'RXH' : 'FACTURA';
+
+                    let date = null;
+                    if (dateMatch) {
+                        let dStr = dateMatch[1].replace(/-/g, '/');
+                        let parts = dStr.split('/');
+                        if (parts.length === 3) {
+                            if (parts[0].length === 2 && parts[2].length === 4) {
+                                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
+                            } else if (parts[0].length === 4) {
+                                date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00Z`);
+                            }
+                        }
+                    }
+                    if (!date || isNaN(date.getTime())) date = new Date(); // fallback
+
+                    let amountRegex = /(?:S\/|TOTAL|IMPORTE)[\s\:\$\.\,]*([\d,]+\.\d{2})/gi;
+                    let matches = [...fullText.matchAll(amountRegex)];
+                    let total = 0;
+                    if (matches.length > 0) {
+                        let amounts = matches.map(m => parseFloat(m[1].replace(/,/g, '')));
+                        total = Math.max(...amounts);
+                    } else {
+                        let allNums = [...fullText.matchAll(/(?:\s|^)([\d]{1,6}\.\d{2})(?:\s|$)/g)].map(m => parseFloat(m[1]));
+                        if (allNums.length > 0) total = Math.max(...allNums);
+                    }
+
+                    let subtotal = 0;
+                    let igv = 0;
+                    if (isRxH) {
+                        subtotal = total;
+                        igv = 0;
+                    } else {
+                        subtotal = parseFloat((total / 1.18).toFixed(2));
+                        igv = parseFloat((total - subtotal).toFixed(2));
+                    }
+
+                    let expenseData = {
+                        date: date,
+                        seriesNumber: seriesNumber,
+                        ruc: ruc,
+                        name: 'Extraído de PDF',
+                        description: file.name,
+                        subtotal: subtotal,
+                        igv: igv,
+                        total: total,
+                        type: type,
+                        pc: '',
+                        createdAt: serverTimestamp()
+                    };
+
+                    if (total > 0 && ruc) {
+                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                        batch.set(newExpenseRef, expenseData);
+                        processedCount++;
+                    }
+
+                } catch (error) {
+                    console.error(`Error procesando el PDF ${file.name}:`, error);
+                }
+            }
+
+            try {
+                await batch.commit();
+                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos PDF fueron agregados exitosamente. (Verifique los datos manualmente)`);
+                else alert("No se pudieron procesar o encontrar montos válidos en los PDFs.");
+            } catch (error) {
+                console.error("Error al guardar gastos de PDF:", error);
+                alert("Ocurrió un error al guardar los gastos en la base de datos.");
+            }
+
+            toggleLoading(false);
+            event.target.value = '';
+        }
+    </script>
+</body>
+
+</html>
