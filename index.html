@@ -536,18 +536,24 @@
             width: 100%;
             border-collapse: collapse;
             white-space: nowrap;
-            font-size: 13px;
+            font-size: 11px;
+            table-layout: fixed;
         }
 
         .data-table th {
             text-align: left;
-            padding: 12px 16px;
+            padding: 7px 6px;
             background: linear-gradient(180deg, #0f2744 0%, #162d4d 100%);
             color: rgba(255, 255, 255, 0.95);
             font-weight: 600;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            /* Resizable columns */
+            resize: horizontal;
+            position: relative;
         }
 
         .data-table th:first-child {
@@ -558,11 +564,70 @@
             border-top-right-radius: 6px;
         }
 
+        /* Anchos fijos por columna */
+        .data-table th:nth-child(1) {
+            width: 100px;
+        }
+
+        /* Fecha */
+        .data-table th:nth-child(2) {
+            width: 76px;
+        }
+
+        /* Tipo */
+        .data-table th:nth-child(3) {
+            width: 90px;
+        }
+
+        /* Serie */
+        .data-table th:nth-child(4) {
+            width: 90px;
+        }
+
+        /* RUC */
+        .data-table th:nth-child(5) {
+            width: 160px;
+        }
+
+        /* Razón Social */
+        .data-table th:nth-child(6) {
+            width: 80px;
+        }
+
+        /* PC */
+        .data-table th:nth-child(7) {
+            width: 160px;
+        }
+
+        /* Descripción */
+        .data-table th:nth-child(8) {
+            width: 76px;
+        }
+
+        /* Subtotal */
+        .data-table th:nth-child(9) {
+            width: 60px;
+        }
+
+        /* IGV */
+        .data-table th:nth-child(10) {
+            width: 76px;
+        }
+
+        /* Total */
+        .data-table th:nth-child(11) {
+            width: 60px;
+        }
+
+        /* Acciones */
+
         .data-table td {
-            padding: 10px 16px;
+            padding: 2px 4px;
             border-bottom: 1px solid var(--border);
             vertical-align: middle;
             transition: background 0.15s ease;
+            overflow: hidden;
+            max-width: 0;
         }
 
         .data-table tbody tr:nth-child(even) td {
@@ -570,25 +635,41 @@
         }
 
         .data-table tbody tr:hover td {
-            background: linear-gradient(90deg, var(--primary-light) 0%, #dbeafe 100%);
+            background: #eff6ff;
         }
 
+        /* Inputs estilo tabla: sin borde visible, alineados */
         .data-table input,
         .data-table select {
             width: 100%;
-            min-width: 90px;
-            padding: 8px 10px;
-            border: 1px solid #cbd5e1;
-            background: #fafbfc;
-            border-radius: 6px;
-            font-size: 13px;
+            padding: 3px 4px;
+            border: 1px solid transparent;
+            background: transparent;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: var(--font-sans);
+            color: var(--text-main);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .data-table input:hover,
+        .data-table select:hover {
+            border-color: #cbd5e1;
+            background: #fff;
         }
 
         .data-table input:focus,
         .data-table select:focus {
             background: white;
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--primary-glow);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+            outline: none;
+        }
+
+        .data-table input[disabled] {
+            color: var(--text-muted);
+            cursor: default;
         }
 
         .data-table .read-only-input {
@@ -1115,37 +1196,40 @@
             tbody.innerHTML = '';
             let pcOptions = partidasContables.map(pc => `<option value="${pc.id}">${pc.id} - ${pc.descripcion || ''}</option>`).join('');
 
+            const esc = v => String(v || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
             expenses.forEach(expense => {
                 const row = document.createElement('tr');
                 row.dataset.id = expense.id;
-                const expenseDate = expense.date?.seconds ? new Date(expense.date.seconds * 1000).toISOString().split('T')[0] : '';
+                const expenseDate = expense.date?.seconds ? new Date(expense.date.seconds * 1000).toISOString().split('T')[0]
+                    : (expense.date instanceof Date ? expense.date.toISOString().split('T')[0] : '');
 
                 row.innerHTML = `
-                <td><input type="date" data-field="date" value="${expenseDate}"></td>
-                <td><select data-field="type">
-                    <option value="BOLETA" ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
-                    <option value="FACTURA" ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
-                    <option value="RXH" ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
-                    <option value="NOTA DE CREDITO" ${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>Nota de Crédito</option>
-                    <option value="MOVILIDAD" ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movilidad</option>
-                    <option value="OTRO" ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
+                <td title="${expenseDate}"><input type="date" data-field="date" value="${expenseDate}"></td>
+                <td><select data-field="type" title="${esc(expense.type)}">
+                    <option value="BOLETA"         ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
+                    <option value="FACTURA"        ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
+                    <option value="RXH"            ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
+                    <option value="NOTA DE CREDITO"${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>N.Cred</option>
+                    <option value="MOVILIDAD"      ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movil.</option>
+                    <option value="OTRO"           ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
                 </select></td>
-                <td><input type="text" data-field="seriesNumber" value="${expense.seriesNumber || ''}"></td>
-                <td><input type="text" data-field="ruc" value="${expense.ruc || ''}"></td>
-                <td><input type="text" data-field="name" value="${expense.name || ''}"></td>
-                <td><select data-field="pc"><option value="">Seleccione...</option>${pcOptions}</select></td>
-                <td><input type="text" data-field="description" value="${expense.description || ''}"></td>
-                <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}"></td>
-                <td><input type="number" data-field="igv" value="${(expense.igv || 0).toFixed(2)}" disabled></td>
-                <td><input type="number" data-field="total" value="${(expense.total || 0).toFixed(2)}"></td>
-                <td>
-                    ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver Archivo">📄</a>` : ''}
-                    <label for="file-${expense.id}" style="cursor:pointer;" title="Adjuntar comprobante">📎</label>
+                <td title="${esc(expense.seriesNumber)}"><input type="text" data-field="seriesNumber" value="${esc(expense.seriesNumber)}" placeholder="Serie"></td>
+                <td title="${esc(expense.ruc)}"><input type="text" data-field="ruc" value="${esc(expense.ruc)}" placeholder="RUC" maxlength="11"></td>
+                <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social"></td>
+                <td title="${esc(expense.pc)}"><select data-field="pc" style="font-size:10px;"><option value="">PC...</option>${pcOptions}</select></td>
+                <td title="${esc(expense.description)}"><input type="text" data-field="description" value="${esc(expense.description)}" placeholder="Descripción"></td>
+                <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}" style="text-align:right;"></td>
+                <td><input type="number" data-field="igv"      value="${(expense.igv || 0).toFixed(2)}"      style="text-align:right; color:var(--text-muted);" disabled></td>
+                <td><input type="number" data-field="total"    value="${(expense.total || 0).toFixed(2)}"    style="text-align:right; font-weight:600;"></td>
+                <td style="text-align:center; padding:2px 3px;">
+                    ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver comprobante" style="font-size:14px;">📄</a> ` : ''}
+                    <label for="file-${expense.id}" style="cursor:pointer; font-size:14px;" title="Adjuntar comprobante">📎</label>
                     <input type="file" id="file-${expense.id}" style="display:none" data-action="upload-expense-file">
-                    <button class="btn danger btn-sm icon-btn" data-action="delete-expense">🗑️</button>
+                    <button class="btn danger btn-sm icon-btn" data-action="delete-expense" style="padding:2px 4px; font-size:12px;">🗑️</button>
                 </td>`;
 
-                row.querySelector(`[data-field="pc"]`).value = expense.pc || '';
+                row.querySelector('[data-field="pc"]').value = expense.pc || '';
                 tbody.appendChild(row);
             });
             updateSummary();
@@ -1922,86 +2006,154 @@
                 try {
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let fullText = '';
+
+                    // Extraer texto preservando saltos de línea por elemento
+                    let lines = [];
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        fullText += textContent.items.map(item => item.str).join(' ') + ' ';
+                        const tc = await page.getTextContent();
+                        // Agrupar items por y-position para reconstruir líneas
+                        const byY = {};
+                        tc.items.forEach(item => {
+                            const y = Math.round(item.transform[5]);
+                            if (!byY[y]) byY[y] = [];
+                            byY[y].push(item.str.trim());
+                        });
+                        Object.keys(byY).sort((a, b) => b - a).forEach(y => {
+                            const line = byY[y].join(' ').trim();
+                            if (line) lines.push(line);
+                        });
                     }
+                    const fullText = lines.join('\n');
+                    console.log('PDF TEXT SAMPLE:', fullText.substring(0, 600));
 
-                    // Regex enhancments for SUNAT formats
-                    const rucMatch = fullText.match(/\b(20|10)\d{9}\b/);
-                    let seriesMatch = fullText.match(/\b([FBE0-9]{4}-\d{1,8})\b/i);
-                    const dateMatch = fullText.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/) || fullText.match(/\b(\d{4}[\/\-]\d{2}[\/\-]\d{2})\b/);
+                    // ── RUC del EMISOR (proveedor) ──────────────────────────────────
+                    // SUNAT: RUC de 11 dígitos que empieza en 10 o 20
+                    const allRucs = [...fullText.matchAll(/\b((?:20|10)\d{9})\b/g)].map(m => m[1]);
+                    // El RUC del emisor suele aparecer antes que el del receptor
+                    const ruc = allRucs[0] || '';
 
-                    let ruc = rucMatch ? rucMatch[0] : '';
-                    let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
-                    let isRxH = fullText.toUpperCase().includes('RECIBO POR HONORARIOS') || (seriesNumber && seriesNumber.startsWith('E'));
-                    let type = isRxH ? 'RXH' : 'FACTURA';
+                    // ── RAZÓN SOCIAL del EMISOR ─────────────────────────────────────
+                    // Buscar la línea que está junto o cerca del RUC del emisor
+                    let razonSocial = '';
+                    if (ruc) {
+                        // Buscar en líneas adyacentes al RUC
+                        const rucLineIdx = lines.findIndex(l => l.includes(ruc));
+                        const searchArea = lines.slice(Math.max(0, rucLineIdx - 5), rucLineIdx + 3).join(' ');
+                        // Patrón: empresa con sufijo legal SAC, SRL, SA, EIRL, CIA, SAS...
+                        const rsMatch = searchArea.match(/([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s&\.,'\-]{3,60}(?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|CIA\.?|S\.?A\.S?\.?|LTDA?\.?|INC?\.?|GR?UP[OA]?\.?))/i);
+                        if (rsMatch) razonSocial = rsMatch[1].trim();
 
-                    let date = null;
-                    if (dateMatch) {
-                        let dStr = dateMatch[1].replace(/-/g, '/');
-                        let parts = dStr.split('/');
-                        if (parts.length === 3) {
-                            if (parts[0].length === 2 && parts[2].length === 4) {
-                                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
-                            } else if (parts[0].length === 4) {
-                                date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00Z`);
+                        // Fallback: línea justo antes del RUC en mayúsculas
+                        if (!razonSocial && rucLineIdx > 0) {
+                            const prevLine = lines[rucLineIdx - 1];
+                            if (prevLine && prevLine === prevLine.toUpperCase() && prevLine.length > 4) {
+                                razonSocial = prevLine;
                             }
                         }
-                    }
-                    if (!date || isNaN(date.getTime())) date = new Date(); // fallback
 
-                    let amountRegex = /(?:S\/|TOTAL|IMPORTE)[\s\:\$\.\,]*([\d]{1,3}(?:[,\.][\d]{3})*(?:[,\.][\d]{2}))/gi;
-                    let matches = [...fullText.matchAll(amountRegex)];
-                    let total = 0;
-                    if (matches.length > 0) {
-                        let amounts = matches.map(m => parseFloat(m[1].replace(/,/g, '')));
-                        total = Math.max(...amounts);
-                    } else {
-                        let allNums = [...fullText.matchAll(/(?:\s|^)([\d]{1,6}\.\d{2})(?:\s|$)/g)].map(m => parseFloat(m[1]));
-                        if (allNums.length > 0) total = Math.max(...allNums);
+                        // Fallback 2: buscar patrón "R.U.C.: 20XXXXXXXXX EMPRESA SAC"
+                        if (!razonSocial) {
+                            const inlineMatch = fullText.match(/R\.?U\.?C\.?[:\s]+(?:20|10)\d{9}[\s\n]+([^\n]{4,60})/i);
+                            if (inlineMatch) razonSocial = inlineMatch[1].trim();
+                        }
                     }
 
-                    let subtotal = 0;
-                    let igv = 0;
-                    if (isRxH) {
-                        subtotal = total;
-                        igv = 0;
-                    } else {
-                        subtotal = parseFloat((total / 1.18).toFixed(2));
-                        igv = parseFloat((total - subtotal).toFixed(2));
+                    // ── SERIE Y NÚMERO ──────────────────────────────────────────────
+                    const seriesMatch = fullText.match(/\b([FBECR]\d{3}-\d{1,8})\b/i)
+                        || fullText.match(/\b([FBECR]-\d{3}-\d{1,8})\b/i);
+                    const seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
+
+                    // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
+                    const fText = fullText.toUpperCase();
+                    let type = 'FACTURA';
+                    if (fText.includes('RECIBO POR HONORARIO') || (seriesNumber && seriesNumber.startsWith('E'))) type = 'RXH';
+                    else if (fText.includes('BOLETA DE VENTA') || (seriesNumber && seriesNumber.startsWith('B'))) type = 'BOLETA';
+                    else if (fText.includes('NOTA DE CR') || (seriesNumber && seriesNumber.match(/^[FC]\d{3}/i) && fText.includes('NOTA'))) type = 'NOTA DE CREDITO';
+
+                    // ── FECHA ────────────────────────────────────────────────────────
+                    const dateMatch = fullText.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/)
+                        || fullText.match(/(\d{4})[\/-](\d{2})[\/-](\d{2})/);
+                    let date = new Date();
+                    if (dateMatch) {
+                        const [_, p1, p2, p3] = dateMatch;
+                        date = p1.length === 4
+                            ? new Date(`${p1}-${p2}-${p3}T12:00:00Z`)
+                            : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
+                        if (isNaN(date.getTime())) date = new Date();
                     }
 
-                    let expenseData = {
-                        date: date,
-                        seriesNumber: seriesNumber,
-                        ruc: ruc,
-                        name: 'Extraído de PDF',
-                        description: file.name,
-                        subtotal: subtotal,
-                        igv: igv,
-                        total: total,
-                        type: type,
-                        pc: '',
-                        fileUrl: null,
-                        createdAt: serverTimestamp()
+                    // ── MONTOS con etiquetas SUNAT ──────────────────────────────────
+                    const getAmount = (...patterns) => {
+                        for (const pat of patterns) {
+                            const m = fullText.match(pat);
+                            if (m) { const v = parseFloat(m[1].replace(/,/g, '')); if (!isNaN(v) && v > 0) return v; }
+                        }
+                        return 0;
                     };
 
-                    if (total > 0 && ruc) {
+                    let total = getAmount(
+                        /(?:IMPORTE\s+TOTAL|TOTAL\s+A\s+PAGAR|TOTAL\s+VENTA)[\s\S]{0,30}?S\/\.?\s*([\d,]+\.\d{2})/i,
+                        /TOTAL[:\s]+S\/\.?\s*([\d,]+\.\d{2})/i,
+                        /S\/\.?\s*([\d]{1,6}\.\d{2})\s*(?:$|\n)/im
+                    );
+                    let igv = getAmount(
+                        /I\.?G\.?V\.?[:\s(]*(?:18\s*%)?[)\s]*S\/\.?\s*([\d,]+\.\d{2})/i,
+                        /IGV[:\s]+([\d,]+\.\d{2})/i
+                    );
+                    let subtotal = getAmount(
+                        /(?:OP(?:ERACI[OÓ]N)?\.?\s*GRAV|BASE\s+IMPONIBLE|SUB\.?\s*TOTAL|VALOR\s+VENTA)[:\s]+S\/\.?\s*([\d,]+\.\d{2})/i
+                    );
+
+                    // Fallback: calcular desde total
+                    const isRxH = type === 'RXH';
+                    if (isRxH) { subtotal = total; igv = 0; }
+                    else {
+                        if (!igv && total) igv = parseFloat((total / 1.18 * 0.18).toFixed(2));
+                        if (!subtotal && total) subtotal = parseFloat((total - igv).toFixed(2));
+                        // Si solo tenemos subtotal e igv, calcular total
+                        if (!total && subtotal && igv) total = parseFloat((subtotal + igv).toFixed(2));
+                    }
+
+                    // ── DESCRIPCIÓN ─────────────────────────────────────────────────
+                    let descripcion = '';
+                    // Buscar línea después de cabeceras de detalle SUNAT
+                    const descMatch = fullText.match(/(?:DESCRIPCI[OÓ]N|DETALLE|CONCEPTO|BIEN.{0,10}SERVICIO)[:\s\n]+([^\n]{5,120})/i);
+                    if (descMatch) descripcion = descMatch[1].trim();
+                    // Fallback: primera línea que parece descripción (no números, no labels conocidos)
+                    if (!descripcion) {
+                        const skipWords = /^(RUC|FECHA|TOTAL|IGV|SUB|IMPORTE|FACT|BOL|SERIE|N[°ú]|BASE|VALOR|OP\.)/i;
+                        descripcion = lines.find(l => l.length > 10 && !skipWords.test(l) && !/^\d/.test(l) && !/^S\//.test(l)) || file.name;
+                    }
+
+                    console.log(`PDF [${file.name}]: RUC=${ruc} RS="${razonSocial}" Serie=${seriesNumber} Total=${total} IGV=${igv} Tipo=${type}`);
+
+                    if (total > 0) {
+                        const expenseData = {
+                            date, seriesNumber, ruc,
+                            name: razonSocial || (ruc ? 'Extraído de PDF' : ''),
+                            description: descripcion,
+                            subtotal: parseFloat((subtotal || 0).toFixed(2)),
+                            igv: parseFloat((igv || 0).toFixed(2)),
+                            total: parseFloat((total || 0).toFixed(2)),
+                            type, pc: '', fileUrl: null,
+                            createdAt: serverTimestamp()
+                        };
+
                         try {
                             const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
                             const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
                             const snapshot = await uploadBytes(fileRef, file);
                             expenseData.fileUrl = await getDownloadURL(snapshot.ref);
                         } catch (uploadErr) {
-                            console.error("Error al subir archivo PDF a Storage:", uploadErr);
+                            console.error('Error subiendo PDF a Storage:', uploadErr);
                         }
 
-                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                        const newExpenseRef = doc(collection(db, 'cajasChicasActivas', currentUserData.uid, 'expenses'));
                         batch.set(newExpenseRef, expenseData);
                         processedCount++;
+                    } else {
+                        console.warn(`${file.name}: sin monto válido, se omite.`);
                     }
 
                 } catch (error) {
@@ -2011,11 +2163,11 @@
 
             try {
                 await batch.commit();
-                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos PDF fueron agregados exitosamente. (Verifique los datos manualmente)`);
-                else alert("No se pudieron procesar o encontrar montos válidos en los PDFs.");
+                if (processedCount > 0) alert(`${processedCount} de ${files.length} PDFs agregados. Verifique razón social y descripción.`);
+                else alert('No se pudieron extraer montos válidos de los PDFs. Revise la consola (F12) para detalles.');
             } catch (error) {
-                console.error("Error al guardar gastos de PDF:", error);
-                alert("Ocurrió un error al guardar los gastos en la base de datos.");
+                console.error('Error al guardar gastos de PDF:', error);
+                alert('Error al guardar los gastos: ' + error.message);
             }
 
             toggleLoading(false);
