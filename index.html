@@ -1770,91 +1770,123 @@
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(xmlString, "application/xml");
 
-                    // Validar si el XML se parseó correctamente
                     if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
                         console.error("Error al parsear XML:", file.name);
                         alert(`El archivo ${file.name} no es un XML válido.`);
                         continue;
                     }
 
-                    const getNodeText = (selectors) => {
-                        for (const selector of selectors) {
-                            try {
-                                const node = xmlDoc.querySelector(selector);
-                                if (node && node.textContent) return node.textContent.trim();
-                            } catch (e) { }
-                        }
-                        return '';
+                    // ── Helper robusto: busca por nombre local ignorando namespace (cbc:, cac:, etc.)
+                    const getByTag = (tag, parent = xmlDoc) => Array.from(parent.getElementsByTagNameNS('*', tag));
+                    const getFirstText = (tag, parent = xmlDoc) => {
+                        const nodes = getByTag(tag, parent);
+                        return nodes.length > 0 ? nodes[0].textContent.trim() : '';
                     };
 
-                    const idNode = getNodeText(['Invoice > ID', 'CreditNote > ID', 'Retention > ID', '*|Invoice > *|ID', '*|CreditNote > *|ID']);
+                    // ── Tipo de documento desde la raíz
+                    const rootTag = xmlDoc.documentElement.localName;
+                    const isCreditNote = rootTag === 'CreditNote';
+                    const isRetentionDoc = rootTag === 'Retention';
+
+                    // ── ID principal del comprobante (primer ID del documento)
+                    const allIds = getByTag('ID');
+                    const idNode = allIds.length > 0 ? allIds[0].textContent.trim() : '';
+
                     if (!idNode) {
-                        console.warn(`El archivo ${file.name} no parece ser un XML válido de SUNAT (sin ID principal).`);
+                        console.warn(`${file.name}: sin ID principal, no es XML SUNAT válido.`);
                         continue;
                     }
 
-                    // Montos (Logica Macro Excel)
-                    const totalStr = getNodeText(['LegalMonetaryTotal > PayableAmount', 'LegalMonetaryTotal > TaxInclusiveAmount', 'Retention > TotalInvoiceAmount', '*|LegalMonetaryTotal > *|PayableAmount']);
-                    const subtotalStr = getNodeText(['LegalMonetaryTotal > LineExtensionAmount', '*|LegalMonetaryTotal > *|LineExtensionAmount']);
-                    const igvStr = getNodeText(['TaxTotal > TaxAmount', '*|TaxTotal > *|TaxAmount']);
+                    // ── Fechas
+                    const issueDate = getFirstText('IssueDate');
+                    const parsedDate = issueDate ? new Date(issueDate + 'T12:00:00Z') : new Date();
 
-                    let total = parseFloat(totalStr) || 0;
-                    let igv = parseFloat(igvStr) || 0;
-                    let subtotal = parseFloat(subtotalStr) || (total - igv);
-
-                    // Descripción
-                    let descripcion = getNodeText([
-                        'InvoiceLine > Item > Description',
-                        'CreditNoteLine > Item > Description',
-                        'InvoiceLine > Note',
-                        '*|InvoiceLine > *|Item > *|Description',
-                        '*|InvoiceLine > *|Note'
-                    ]) || 'Gasto importado';
-
-                    // Busqueda de PC automática
-                    let autoPc = '';
-                    const descUpper = descripcion.toUpperCase();
-                    if (descUpper.includes('MOVILIDAD') || descUpper.includes('TAXI') || descUpper.includes('PASAJE')) autoPc = '63.1.1.2.1'; // Ejemplo de PC
-                    else if (descUpper.includes('ALMUERZO') || descUpper.includes('MENU') || descUpper.includes('COMIDA')) autoPc = '63.1.1.2.2';
-
-                    let expenseData = {
-                        date: new Date(getNodeText(['Invoice > IssueDate', 'CreditNote > IssueDate', 'Retention > IssueDate', '*|Invoice > *|IssueDate']) || new Date()),
-                        seriesNumber: idNode,
-                        ruc: getNodeText([
-                            'AccountingSupplierParty > Party > PartyIdentification > ID',
-                            'AccountingSupplierParty > CustomerAssignedAccountID',
-                            'AgentParty > PartyIdentification > ID',
-                            '*|AccountingSupplierParty > *|Party > *|PartyIdentification > *|ID'
-                        ]),
-                        name: getNodeText([
-                            'AccountingSupplierParty > Party > PartyName > Name',
-                            'AccountingSupplierParty > Party > PartyLegalEntity > RegistrationName',
-                            'AgentParty > PartyLegalEntity > RegistrationName',
-                            '*|AccountingSupplierParty > *|Party > *|PartyLegalEntity > *|RegistrationName'
-                        ]),
-                        description: descripcion,
-                        subtotal: subtotal,
-                        igv: igv,
-                        total: total,
-                        type: xmlDoc.querySelector('CreditNote, *\\|CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
-                        pc: autoPc,
-                        createdAt: serverTimestamp()
-                    };
-
-                    // RxH
-                    const isRxH = xmlDoc.querySelector('Retention, *\\|Retention') ||
-                        Array.from(xmlDoc.querySelectorAll('TaxCategory > ID, *\\|TaxCategory > *\\|ID')).some(node => node.textContent.includes('RET'));
-
-                    if (isRxH) {
-                        expenseData.type = 'RXH';
-                        expenseData.igv = 0;
-                        expenseData.subtotal = expenseData.total;
+                    // ── Proveedor (AccountingSupplierParty)
+                    const supplierNodes = getByTag('AccountingSupplierParty');
+                    let ruc = '', name = '';
+                    if (supplierNodes.length > 0) {
+                        const supplier = supplierNodes[0];
+                        // RUC: buscar ID dentro de PartyIdentification
+                        const partyIdNodes = getByTag('PartyIdentification', supplier);
+                        if (partyIdNodes.length > 0) {
+                            ruc = getFirstText('ID', partyIdNodes[0]);
+                        }
+                        if (!ruc) ruc = getFirstText('CustomerAssignedAccountID', supplier);
+                        // Razón social
+                        name = getFirstText('RegistrationName', supplier) || getFirstText('Name', supplier);
+                    }
+                    // RUC para retenciones (AgentParty)
+                    if (!ruc && isRetentionDoc) {
+                        const agentNodes = getByTag('AgentParty');
+                        if (agentNodes.length > 0) {
+                            ruc = getFirstText('ID', agentNodes[0]);
+                            name = getFirstText('RegistrationName', agentNodes[0]);
+                        }
                     }
 
-                    if (expenseData.total !== 0 && expenseData.ruc) {
+                    // ── Montos
+                    const legalTotal = getByTag('LegalMonetaryTotal');
+                    let total = 0, subtotal = 0, igv = 0;
+                    if (legalTotal.length > 0) {
+                        total = parseFloat(getFirstText('PayableAmount', legalTotal[0])) ||
+                            parseFloat(getFirstText('TaxInclusiveAmount', legalTotal[0])) || 0;
+                        subtotal = parseFloat(getFirstText('LineExtensionAmount', legalTotal[0])) || 0;
+                    }
+                    if (isRetentionDoc) {
+                        total = parseFloat(getFirstText('TotalInvoiceAmount')) || 0;
+                    }
+                    const taxNodes = getByTag('TaxTotal');
+                    if (taxNodes.length > 0) igv = parseFloat(getFirstText('TaxAmount', taxNodes[0])) || 0;
+                    if (!subtotal) subtotal = total - igv;
+
+                    // ── Descripción (primer línea)
+                    const lineNodes = getByTag(isCreditNote ? 'CreditNoteLine' : 'InvoiceLine');
+                    let descripcion = 'Gasto importado';
+                    if (lineNodes.length > 0) {
+                        descripcion = getFirstText('Description', lineNodes[0]) ||
+                            getFirstText('Note', lineNodes[0]) || 'Gasto importado';
+                    }
+
+                    // ── Tipo
+                    let tipo = isCreditNote ? 'NOTA DE CREDITO' : (isRetentionDoc ? 'RXH' : 'FACTURA');
+                    if (isRetentionDoc) { igv = 0; subtotal = total; }
+
+                    // ── Verificar si es RxH por código de impuesto
+                    if (!isRetentionDoc) {
+                        const taxCatIds = getByTag('TaxCategory').flatMap(tc => getByTag('ID', tc));
+                        if (taxCatIds.some(n => n.textContent.includes('OTH') || n.textContent.includes('RET'))) {
+                            tipo = 'RXH'; igv = 0; subtotal = total;
+                        }
+                    }
+
+                    // ── PC automática por descripción
+                    let autoPc = '';
+                    const descUpper = descripcion.toUpperCase();
+                    if (descUpper.includes('MOVILIDAD') || descUpper.includes('TAXI') || descUpper.includes('PASAJE')) autoPc = '63.1.1.2.1';
+                    else if (descUpper.includes('ALMUERZO') || descUpper.includes('MENU') || descUpper.includes('COMIDA')) autoPc = '63.1.1.2.2';
+
+                    console.log(`XML [${file.name}]: ID=${idNode} RUC=${ruc} Total=${total} Tipo=${tipo}`);
+
+                    // ── Agregar si tiene total > 0 (RUC puede quedar vacío para revisión manual)
+                    if (total > 0) {
+                        const expenseData = {
+                            date: parsedDate,
+                            seriesNumber: idNode,
+                            ruc: ruc || '',
+                            name: name || 'Extraído de XML',
+                            description: descripcion,
+                            subtotal: parseFloat(subtotal.toFixed(2)),
+                            igv: parseFloat(igv.toFixed(2)),
+                            total: parseFloat(total.toFixed(2)),
+                            type: tipo,
+                            pc: autoPc,
+                            createdAt: serverTimestamp()
+                        };
                         const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
                         batch.set(newExpenseRef, expenseData);
                         processedCount++;
+                    } else {
+                        console.warn(`${file.name}: total=0, se omite.`);
                     }
 
                 } catch (error) {
