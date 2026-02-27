@@ -993,6 +993,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB5XMV9qLNrD2A-79XvkwIvoWbjuhqWBGw",
@@ -1006,8 +1007,9 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const storage = getStorage(app);
 
-        let currentUserData, empresas = [], obras = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
+        let currentUserData, empresas = [], areas = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
         let listeners = [];
 
         const el = (id) => document.getElementById(id);
@@ -1057,8 +1059,8 @@
                 }
             }));
 
-            listeners.push(onSnapshot(query(collection(db, "obras")), s => {
-                obras = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            listeners.push(onSnapshot(query(collection(db, "areas")), s => {
+                areas = s.docs.map(d => ({ id: d.id, ...d.data() }));
                 renderObrasDropdowns();
                 if (isAdmin) renderObrasTable();
             }));
@@ -1136,7 +1138,12 @@
                 <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}"></td>
                 <td><input type="number" data-field="igv" value="${(expense.igv || 0).toFixed(2)}" disabled></td>
                 <td><input type="number" data-field="total" value="${(expense.total || 0).toFixed(2)}"></td>
-                <td><button class="btn danger btn-sm icon-btn" data-action="delete-expense">🗑️</button></td>`;
+                <td>
+                    ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver Archivo">📄</a>` : ''}
+                    <label for="file-${expense.id}" style="cursor:pointer;" title="Adjuntar comprobante">📎</label>
+                    <input type="file" id="file-${expense.id}" style="display:none" data-action="upload-expense-file">
+                    <button class="btn danger btn-sm icon-btn" data-action="delete-expense">🗑️</button>
+                </td>`;
 
                 row.querySelector(`[data-field="pc"]`).value = expense.pc || '';
                 tbody.appendChild(row);
@@ -1213,17 +1220,17 @@
         function renderObrasDropdowns() {
             const obraSelect = el('obra-select');
             const filterObra = el('filter-obra');
-            if (!obras) return;
-            const optionsHtml = obras.map(o => `<option value="${o.id}">${o.codigo || ''} - ${o.nombre || ''}</option>`).join('');
+            if (!areas) return;
+            const optionsHtml = areas.map(a => `<option value="${a.id}">${a.nombre || a.id}</option>`).join('');
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
-                obraSelect.innerHTML = '<option value="">-- Seleccionar Obra --</option>' + optionsHtml;
+                obraSelect.innerHTML = '<option value="">-- Seleccionar Área/Proyecto --</option>' + optionsHtml;
                 obraSelect.value = currentVal;
             }
             if (filterObra) {
                 const currentVal = filterObra.value;
-                filterObra.innerHTML = '<option value="">Todas las Obras</option>' + optionsHtml;
+                filterObra.innerHTML = '<option value="">Todas las Áreas/Proyectos</option>' + optionsHtml;
                 filterObra.value = currentVal;
             }
         }
@@ -1232,13 +1239,13 @@
             const tbody = el('obras-table-body');
             if (!tbody) return;
             tbody.innerHTML = '';
-            obras.forEach(obra => {
+            areas.forEach(a => {
                 const row = document.createElement('tr');
-                row.dataset.id = obra.id;
+                row.dataset.id = a.id;
                 row.innerHTML = `
-                    <td>${obra.codigo || ''}</td>
-                    <td>${obra.nombre || ''}</td>
-                    <td><button class="btn danger btn-sm" data-action="delete-obra">Eliminar</button></td>
+                    <td>-</td>
+                    <td>${a.nombre || a.id}</td>
+                    <td><button class="btn danger btn-sm" disabled title="Administrado desde Planilla Web">Eliminar (Solo lectura)</button></td>
                 `;
                 tbody.appendChild(row);
             });
@@ -1434,8 +1441,6 @@
                     if (confirm('¿Eliminar Partida Contable?')) await deleteDoc(doc(db, "partidasContables", row.dataset.id));
                 } else if (action === 'delete-empresa') {
                     if (confirm('¿Eliminar Empresa?')) await deleteDoc(doc(db, "empresas", row.dataset.id));
-                } else if (action === 'delete-obra') {
-                    if (confirm('¿Eliminar Obra?')) await deleteDoc(doc(db, "obras", row.dataset.id));
                 }
             } catch (error) {
                 console.error("Error en Ajustes:", error);
@@ -1550,12 +1555,12 @@
             const obraId = obraSelect ? obraSelect.value : null;
 
             if (!obraId) {
-                alert("Debe seleccionar una Obra para iniciar la caja chica.");
+                alert("Debe seleccionar un Área/Obra para iniciar la caja chica.");
                 return;
             }
 
-            const selectedObra = obras.find(o => o.id === obraId);
-            const obraNombre = selectedObra ? selectedObra.nombre : 'Desconocida';
+            const selectedArea = areas.find(a => a.id === obraId);
+            const obraNombre = selectedArea ? (selectedArea.nombre || selectedArea.id) : 'Desconocida';
 
             if (amount > 0 && !activePettyCash) {
                 toggleLoading(true);
@@ -1631,7 +1636,30 @@
         }
 
         el('expenses-table-body').addEventListener('change', async (e) => {
-            if (e.target.matches('input, select')) {
+            if (e.target.matches('[data-action="upload-expense-file"]')) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const row = e.target.closest('tr');
+                const expenseId = row.dataset.id;
+                toggleLoading(true);
+                try {
+                    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+                    const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
+                    const snapshot = await uploadBytes(fileRef, file);
+                    const fileUrl = await getDownloadURL(snapshot.ref);
+
+                    await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", expenseId), { fileUrl });
+                    alert("Archivo adjuntado correctamente.");
+                } catch (error) {
+                    console.error("Error al subir archivo:", error);
+                    alert("Error al subir el comprobante.");
+                }
+                toggleLoading(false);
+                e.target.value = '';
+                return;
+            }
+
+            if (e.target.matches('input, select') && e.target.type !== 'file') {
                 const row = e.target.closest('tr');
                 const expenseId = row.dataset.id;
                 const field = e.target.dataset.field;
@@ -1732,46 +1760,70 @@
                     const getNodeText = (selectors) => {
                         for (const selector of selectors) {
                             try {
-                                const node = xmlDoc.querySelector(selector.replace(/:/g, '\\:'));
-                                if (node) return node.textContent.trim();
-                            } catch (e) {
-                                console.warn("Selector fallido:", selector);
-                            }
+                                const node = xmlDoc.querySelector(selector);
+                                if (node && node.textContent) return node.textContent.trim();
+                            } catch (e) { }
                         }
                         return '';
                     };
 
-                    const idNode = getNodeText(['Invoice > cbc\\:ID', 'CreditNote > cbc\\:ID', 'Retention > cbc\\:ID']);
+                    const idNode = getNodeText(['Invoice > ID', 'CreditNote > ID', 'Retention > ID', '*|Invoice > *|ID', '*|CreditNote > *|ID']);
                     if (!idNode) {
-                        alert(`El archivo ${file.name} no parece ser un documento UBL válido de SUNAT.`);
+                        console.warn(`El archivo ${file.name} no parece ser un XML válido de SUNAT (sin ID principal).`);
                         continue;
                     }
 
-                    // Intentar recuperar el RUC, nombre, subtotales
-                    const totalStr = getNodeText(['LegalMonetaryTotal > cbc\\:PayableAmount', 'LegalMonetaryTotal > cbc\\:TaxInclusiveAmount', 'Retention > cbc\\:TotalInvoiceAmount']);
-                    const igvStr = getNodeText(['TaxTotal > cbc\\:TaxAmount']);
+                    // Montos (Logica Macro Excel)
+                    const totalStr = getNodeText(['LegalMonetaryTotal > PayableAmount', 'LegalMonetaryTotal > TaxInclusiveAmount', 'Retention > TotalInvoiceAmount', '*|LegalMonetaryTotal > *|PayableAmount']);
+                    const subtotalStr = getNodeText(['LegalMonetaryTotal > LineExtensionAmount', '*|LegalMonetaryTotal > *|LineExtensionAmount']);
+                    const igvStr = getNodeText(['TaxTotal > TaxAmount', '*|TaxTotal > *|TaxAmount']);
 
                     let total = parseFloat(totalStr) || 0;
                     let igv = parseFloat(igvStr) || 0;
-                    let subtotal = total - igv;
+                    let subtotal = parseFloat(subtotalStr) || (total - igv);
+
+                    // Descripción
+                    let descripcion = getNodeText([
+                        'InvoiceLine > Item > Description',
+                        'CreditNoteLine > Item > Description',
+                        'InvoiceLine > Note',
+                        '*|InvoiceLine > *|Item > *|Description',
+                        '*|InvoiceLine > *|Note'
+                    ]) || 'Gasto importado';
+
+                    // Busqueda de PC automática
+                    let autoPc = '';
+                    const descUpper = descripcion.toUpperCase();
+                    if (descUpper.includes('MOVILIDAD') || descUpper.includes('TAXI') || descUpper.includes('PASAJE')) autoPc = '63.1.1.2.1'; // Ejemplo de PC
+                    else if (descUpper.includes('ALMUERZO') || descUpper.includes('MENU') || descUpper.includes('COMIDA')) autoPc = '63.1.1.2.2';
 
                     let expenseData = {
-                        date: new Date(getNodeText(['Invoice > cbc\\:IssueDate', 'CreditNote > cbc\\:IssueDate', 'Retention > cbc\\:IssueDate']) || new Date()),
+                        date: new Date(getNodeText(['Invoice > IssueDate', 'CreditNote > IssueDate', 'Retention > IssueDate', '*|Invoice > *|IssueDate']) || new Date()),
                         seriesNumber: idNode,
-                        ruc: getNodeText(['AccountingSupplierParty > Party > PartyIdentification > cbc\\:ID', 'AccountingSupplierParty > cbc\\:CustomerAssignedAccountID', 'AgentParty > PartyIdentification > cbc\\:ID']),
-                        name: getNodeText(['AccountingSupplierParty > Party > PartyName > cbc\\:Name', 'AccountingSupplierParty > Party > PartyLegalEntity > cbc\\:RegistrationName', 'AgentParty > PartyLegalEntity > cbc\\:RegistrationName']),
-                        description: getNodeText(['InvoiceLine > Item > cbc\\:Description', 'CreditNoteLine > Item > cbc\\:Description', 'InvoiceLine > cbc\\:Note']) || 'Gasto importado',
+                        ruc: getNodeText([
+                            'AccountingSupplierParty > Party > PartyIdentification > ID',
+                            'AccountingSupplierParty > CustomerAssignedAccountID',
+                            'AgentParty > PartyIdentification > ID',
+                            '*|AccountingSupplierParty > *|Party > *|PartyIdentification > *|ID'
+                        ]),
+                        name: getNodeText([
+                            'AccountingSupplierParty > Party > PartyName > Name',
+                            'AccountingSupplierParty > Party > PartyLegalEntity > RegistrationName',
+                            'AgentParty > PartyLegalEntity > RegistrationName',
+                            '*|AccountingSupplierParty > *|Party > *|PartyLegalEntity > *|RegistrationName'
+                        ]),
+                        description: descripcion,
                         subtotal: subtotal,
                         igv: igv,
                         total: total,
-                        type: xmlDoc.querySelector('CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
-                        pc: '',
+                        type: xmlDoc.querySelector('CreditNote, *\\|CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
+                        pc: autoPc,
                         createdAt: serverTimestamp()
                     };
 
-                    // Detectar si es un RxH (Recibo por Honorarios)
-                    const isRxH = xmlDoc.querySelector('Retention') ||
-                        Array.from(xmlDoc.querySelectorAll('TaxCategory > cbc\\:ID')).some(node => node.textContent.includes('RET'));
+                    // RxH
+                    const isRxH = xmlDoc.querySelector('Retention, *\\|Retention') ||
+                        Array.from(xmlDoc.querySelectorAll('TaxCategory > ID, *\\|TaxCategory > *\\|ID')).some(node => node.textContent.includes('RET'));
 
                     if (isRxH) {
                         expenseData.type = 'RXH';
@@ -1779,7 +1831,7 @@
                         expenseData.subtotal = expenseData.total;
                     }
 
-                    if (expenseData.total !== 0 && expenseData.date && expenseData.ruc) {
+                    if (expenseData.total !== 0 && expenseData.ruc) {
                         const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
                         batch.set(newExpenseRef, expenseData);
                         processedCount++;
@@ -1881,10 +1933,20 @@
                         total: total,
                         type: type,
                         pc: '',
+                        fileUrl: null,
                         createdAt: serverTimestamp()
                     };
 
                     if (total > 0 && ruc) {
+                        try {
+                            const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+                            const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
+                            const snapshot = await uploadBytes(fileRef, file);
+                            expenseData.fileUrl = await getDownloadURL(snapshot.ref);
+                        } catch (uploadErr) {
+                            console.error("Error al subir archivo PDF a Storage:", uploadErr);
+                        }
+
                         const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
                         batch.set(newExpenseRef, expenseData);
                         processedCount++;
