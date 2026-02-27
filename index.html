@@ -993,6 +993,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB5XMV9qLNrD2A-79XvkwIvoWbjuhqWBGw",
@@ -1006,8 +1007,9 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const storage = getStorage(app);
 
-        let currentUserData, empresas = [], obras = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
+        let currentUserData, empresas = [], areas = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
         let listeners = [];
 
         const el = (id) => document.getElementById(id);
@@ -1057,8 +1059,8 @@
                 }
             }));
 
-            listeners.push(onSnapshot(query(collection(db, "obras")), s => {
-                obras = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            listeners.push(onSnapshot(query(collection(db, "areas")), s => {
+                areas = s.docs.map(d => ({ id: d.id, ...d.data() }));
                 renderObrasDropdowns();
                 if (isAdmin) renderObrasTable();
             }));
@@ -1136,7 +1138,12 @@
                 <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}"></td>
                 <td><input type="number" data-field="igv" value="${(expense.igv || 0).toFixed(2)}" disabled></td>
                 <td><input type="number" data-field="total" value="${(expense.total || 0).toFixed(2)}"></td>
-                <td><button class="btn danger btn-sm icon-btn" data-action="delete-expense">🗑️</button></td>`;
+                <td>
+                    ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver Archivo">📄</a>` : ''}
+                    <label for="file-${expense.id}" style="cursor:pointer;" title="Adjuntar comprobante">📎</label>
+                    <input type="file" id="file-${expense.id}" style="display:none" data-action="upload-expense-file">
+                    <button class="btn danger btn-sm icon-btn" data-action="delete-expense">🗑️</button>
+                </td>`;
 
                 row.querySelector(`[data-field="pc"]`).value = expense.pc || '';
                 tbody.appendChild(row);
@@ -1208,6 +1215,124 @@
             `;
                 tbody.appendChild(row);
             });
+        }
+
+        function renderObrasDropdowns() {
+            const obraSelect = el('obra-select');
+            const filterObra = el('filter-obra');
+
+            // Usar proyectos asignados al usuario; si no tiene, mostrar todas las áreas
+            const proyectosAsignados = currentUserData?.proyectos || [];
+            let areasFiltradas;
+
+            if (proyectosAsignados.length > 0) {
+                // El usuario tiene proyectos asignados: filtrar las areas por ID o nombre
+                areasFiltradas = areas.filter(a => proyectosAsignados.includes(a.id) || proyectosAsignados.includes(a.nombre));
+            } else {
+                // Sin asignación específica: mostrar todas las áreas disponibles
+                areasFiltradas = areas;
+            }
+
+            const optionsHtml = areasFiltradas.map(a => `<option value="${a.id}">${a.nombre || a.id}</option>`).join('');
+
+            if (obraSelect) {
+                const currentVal = obraSelect.value;
+                obraSelect.innerHTML = '<option value="">-- Seleccionar Proyecto --</option>' + optionsHtml;
+                obraSelect.value = currentVal;
+            }
+            if (filterObra) {
+                const currentVal = filterObra.value;
+                filterObra.innerHTML = '<option value="">Todos los Proyectos</option>' + optionsHtml;
+                filterObra.value = currentVal;
+            }
+        }
+
+        function renderObrasTable() {
+            const tbody = el('obras-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            areas.forEach(a => {
+                const row = document.createElement('tr');
+                row.dataset.id = a.id;
+                row.innerHTML = `
+                    <td>-</td>
+                    <td>${a.nombre || a.id}</td>
+                    <td><button class="btn danger btn-sm" disabled title="Administrado desde Planilla Web">Eliminar (Solo lectura)</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateHistoryFilters() {
+            const filterResponsable = el('filter-responsable');
+            if (!filterResponsable || !historyBoxes) return;
+            const owners = [...new Set(historyBoxes.map(b => b.ownerName).filter(Boolean))];
+            const currentVal = filterResponsable.value;
+            filterResponsable.innerHTML = '<option value="">Todos los Responsables</option>' +
+                owners.map(name => `<option value="${name}">${name}</option>`).join('');
+            filterResponsable.value = currentVal;
+        }
+
+        function renderHistoryView() {
+            const tbody = el('history-table-body');
+            const table = el('history-table');
+            const emptyMsg = el('history-empty-msg');
+            const summaryContainer = el('history-summary');
+            if (!tbody) return;
+
+            const obraFilterId = el('filter-obra')?.value;
+            const resFilterName = el('filter-responsable')?.value;
+
+            let filtered = historyBoxes || [];
+            if (obraFilterId) filtered = filtered.filter(b => b.obraId === obraFilterId);
+            if (resFilterName) filtered = filtered.filter(b => b.ownerName === resFilterName);
+
+            if (filtered.length === 0) {
+                table.style.display = 'none';
+                summaryContainer.style.display = 'none';
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            summaryContainer.style.display = 'grid';
+            emptyMsg.style.display = 'none';
+            tbody.innerHTML = '';
+
+            let sumAsignado = 0;
+            let sumGastado = 0;
+            let sumSaldo = 0;
+
+            filtered.forEach(box => {
+                const tr = document.createElement('tr');
+                const closeDate = box.closedAt && box.closedAt.seconds ? new Date(box.closedAt.seconds * 1000).toLocaleString('es-PE') : 'N/A';
+                const initial = box.initialAmount || 0;
+                const total = box.totalGastado || 0;
+                const saldo = initial - total;
+
+                sumAsignado += initial;
+                sumGastado += total;
+                sumSaldo += saldo;
+
+                tr.innerHTML = `
+                    <td>${box.cajaNumero || 'S/N'}</td>
+                    <td>${closeDate}</td>
+                    <td>${box.obraNombre || 'General'}</td>
+                    <td>${box.ownerName || box.ownerId}</td>
+                    <td>S/ ${initial.toFixed(2)}</td>
+                    <td>S/ ${total.toFixed(2)}</td>
+                    <td style="color:${saldo >= 0 ? 'var(--success-text)' : 'var(--danger-text)'}">S/ ${saldo.toFixed(2)}</td>
+                    <td><span style="font-size:10px; padding:4px 8px; border-radius:12px; background:var(--danger-bg); color:var(--danger-text)">${box.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const elTotalAsignado = el('hist-total-asignado');
+            if (elTotalAsignado) elTotalAsignado.textContent = `S/ ${sumAsignado.toFixed(2)}`;
+            const elTotalGastado = el('hist-total-gastado');
+            if (elTotalGastado) elTotalGastado.textContent = `S/ ${sumGastado.toFixed(2)}`;
+            const elSaldoFinal = el('hist-saldo-final');
+            if (elSaldoFinal) elSaldoFinal.textContent = `S/ ${sumSaldo.toFixed(2)}`;
         }
 
         function updateActiveBoxUI() {
@@ -1442,21 +1567,29 @@
             const obraId = obraSelect ? obraSelect.value : null;
 
             if (!obraId) {
-                alert("Debe seleccionar una Obra para iniciar la caja chica.");
+                alert("Debe seleccionar un Proyecto para iniciar la caja chica.");
                 return;
             }
 
-            const selectedObra = obras.find(o => o.id === obraId);
-            const obraNombre = selectedObra ? selectedObra.nombre : 'Desconocida';
+            if (isNaN(amount) || amount <= 0) {
+                alert("Ingrese un monto válido mayor a 0.");
+                return;
+            }
 
-            if (amount > 0 && !activePettyCash) {
+            // Obtener nombre del área desde la colección areas
+            const areaDoc = areas.find(a => a.id === obraId);
+            const obraNombre = areaDoc ? (areaDoc.nombre || areaDoc.id) : obraId;
+
+            if (!activePettyCash) {
                 toggleLoading(true);
                 try {
-                    const counterRef = doc(db, "counters", "cajaChicaCounter");
+                    // Contador PROPIO de Caja Chica, por proyecto (no usa counters de Planilla)
+                    const counterRef = doc(db, "cajasChicasContadores", obraId);
                     const newCajaNumero = await runTransaction(db, async (transaction) => {
                         const counterDoc = await transaction.get(counterRef);
                         const newCount = (counterDoc.exists() ? counterDoc.data().count : 0) + 1;
-                        transaction.set(counterRef, { count: newCount }, { merge: true });
+                        transaction.set(counterRef, { count: newCount, obraNombre: obraNombre }, { merge: true });
+                        // Formato: CCH-0001 (secuencial por proyecto)
                         return `CCH-${String(newCount).padStart(4, '0')}`;
                     });
 
@@ -1471,10 +1604,10 @@
                         status: 'active',
                         createdAt: serverTimestamp()
                     });
-                    alert(`Caja ${newCajaNumero} iniciada con S/ ${amount.toFixed(2)}`);
+                    alert(`Caja ${newCajaNumero} iniciada para "${obraNombre}" con S/ ${amount.toFixed(2)}`);
                 } catch (error) {
                     console.error("Error al iniciar caja:", error);
-                    alert("No se pudo iniciar la caja. Asegúrese de tener permisos. Error: " + error.message);
+                    alert("No se pudo iniciar la caja.\n\nError: " + error.message + "\n\nVerifique que las reglas de Firebase estén actualizadas (ver firebase-rules-update.md)");
                 } finally {
                     toggleLoading(false);
                 }
@@ -1523,7 +1656,30 @@
         }
 
         el('expenses-table-body').addEventListener('change', async (e) => {
-            if (e.target.matches('input, select')) {
+            if (e.target.matches('[data-action="upload-expense-file"]')) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const row = e.target.closest('tr');
+                const expenseId = row.dataset.id;
+                toggleLoading(true);
+                try {
+                    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+                    const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
+                    const snapshot = await uploadBytes(fileRef, file);
+                    const fileUrl = await getDownloadURL(snapshot.ref);
+
+                    await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", expenseId), { fileUrl });
+                    alert("Archivo adjuntado correctamente.");
+                } catch (error) {
+                    console.error("Error al subir archivo:", error);
+                    alert("Error al subir el comprobante.");
+                }
+                toggleLoading(false);
+                e.target.value = '';
+                return;
+            }
+
+            if (e.target.matches('input, select') && e.target.type !== 'file') {
                 const row = e.target.closest('tr');
                 const expenseId = row.dataset.id;
                 const field = e.target.dataset.field;
@@ -1624,158 +1780,215 @@
                     const getNodeText = (selectors) => {
                         for (const selector of selectors) {
                             try {
-                                const node = xmlDoc.querySelector(selector.replace(/:/g, '\\:'));
-                                if (node) return node.textContent.trim();
-                            } catch (e) {
-                                console.warn("Selector fallido:", selector);
-                            }
+                                const node = xmlDoc.querySelector(selector);
+                                if (node && node.textContent) return node.textContent.trim();
+                            } catch (e) { }
                         }
                         return '';
                     };
 
-                    const idNode = getNodeText(['Invoice > cbc\\:ID', 'CreditNote > cbc\\:ID', 'Retention > cbc\\:ID']);
+                    const idNode = getNodeText(['Invoice > ID', 'CreditNote > ID', 'Retention > ID', '*|Invoice > *|ID', '*|CreditNote > *|ID']);
                     if (!idNode) {
-                        alert(`El archivo ${file.name} no parece ser un documento UBL válido de SUNAT.`);
+                        console.warn(`El archivo ${file.name} no parece ser un XML válido de SUNAT (sin ID principal).`);
                         continue;
                     }
 
-                    // Intentar recuperar el RUC, nombre, subtotales
-                    const totalStr = getNodeText(['LegalMonetaryTotal > cbc\\:PayableAmount', 'LegalMonetaryTotal > cbc\\:TaxInclusiveAmount', 'Retention > cbc\\:TotalInvoiceAmount']);
-                    const igvStr = getNodeText(['TaxTotal > cbc\\:TaxAmount']);
+                    // Montos (Logica Macro Excel)
+                    const totalStr = getNodeText(['LegalMonetaryTotal > PayableAmount', 'LegalMonetaryTotal > TaxInclusiveAmount', 'Retention > TotalInvoiceAmount', '*|LegalMonetaryTotal > *|PayableAmount']);
+                    const subtotalStr = getNodeText(['LegalMonetaryTotal > LineExtensionAmount', '*|LegalMonetaryTotal > *|LineExtensionAmount']);
+                    const igvStr = getNodeText(['TaxTotal > TaxAmount', '*|TaxTotal > *|TaxAmount']);
 
                     let total = parseFloat(totalStr) || 0;
                     let igv = parseFloat(igvStr) || 0;
-                    let subtotal = total - igv;
+                    let subtotal = parseFloat(subtotalStr) || (total - igv);
+
+                    // Descripción
+                    let descripcion = getNodeText([
+                        'InvoiceLine > Item > Description',
+                        'CreditNoteLine > Item > Description',
+                        'InvoiceLine > Note',
+                        '*|InvoiceLine > *|Item > *|Description',
+                        '*|InvoiceLine > *|Note'
+                    ]) || 'Gasto importado';
+
+                    // Busqueda de PC automática
+                    let autoPc = '';
+                    const descUpper = descripcion.toUpperCase();
+                    if (descUpper.includes('MOVILIDAD') || descUpper.includes('TAXI') || descUpper.includes('PASAJE')) autoPc = '63.1.1.2.1'; // Ejemplo de PC
+                    else if (descUpper.includes('ALMUERZO') || descUpper.includes('MENU') || descUpper.includes('COMIDA')) autoPc = '63.1.1.2.2';
 
                     let expenseData = {
-                        date: new Date(getNodeText(['Invoice > cbc\\:IssueDate', 'CreditNote > cbc\\:IssueDate', 'Retention > cbc\\:IssueDate']) || new Date()),
+                        date: new Date(getNodeText(['Invoice > IssueDate', 'CreditNote > IssueDate', 'Retention > IssueDate', '*|Invoice > *|IssueDate']) || new Date()),
                         seriesNumber: idNode,
-                        ruc: getNodeText(['AccountingSupplierParty > Party > PartyIdentification > cbc\\:ID', 'AccountingSupplierParty > cbc\\:CustomerAssignedAccountID', 'AgentParty > PartyIdentification > cbc\\:ID']),
-                        name: getNodeText(['AccountingSupplierParty > Party > PartyName > cbc\\:Name', 'AccountingSupplierParty > Party > PartyLegalEntity > cbc\\:RegistrationName', 'AgentParty > PartyLegalEntity > cbc\\:RegistrationName']),
-                        description: getNodeText(['InvoiceLine > Item > cbc\\:Description', 'CreditNoteLine > Item > cbc\\:Description', 'InvoiceLine > cbc\\:Note']) || 'Gasto importado',
+                        ruc: getNodeText([
+                            'AccountingSupplierParty > Party > PartyIdentification > ID',
+                            'AccountingSupplierParty > CustomerAssignedAccountID',
+                            'AgentParty > PartyIdentification > ID',
+                            '*|AccountingSupplierParty > *|Party > *|PartyIdentification > *|ID'
+                        ]),
+                        name: getNodeText([
+                            'AccountingSupplierParty > Party > PartyName > Name',
+                            'AccountingSupplierParty > Party > PartyLegalEntity > RegistrationName',
+                            'AgentParty > PartyLegalEntity > RegistrationName',
+                            '*|AccountingSupplierParty > *|Party > *|PartyLegalEntity > *|RegistrationName'
+                        ]),
+                        description: descripcion,
                         subtotal: subtotal,
                         igv: igv,
                         total: total,
-                        type: xmlDoc.querySelector('CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
-                        pc: '',
+                        type: xmlDoc.querySelector('CreditNote, *\\|CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
+                        pc: autoPc,
                         createdAt: serverTimestamp()
                     };
 
-                    // Detectar si es un RxH (Recibo por Honorarios)
-                    const isRxH = xmlDoc.querySelector('Retention') ||
-                        Array.from(xmlDoc.querySelectorAll('TaxCategory > cbc\\:ID')).some(node => node.textContent.includes('RET'));
+                    // RxH
+                    const isRxH = xmlDoc.querySelector('Retention, *\\|Retention') ||
+                        Array.from(xmlDoc.querySelectorAll('TaxCategory > ID, *\\|TaxCategory > *\\|ID')).some(node => node.textContent.includes('RET'));
 
                     if (isRxH) {
                         expenseData.type = 'RXH';
                         expenseData.igv = 0;
-                        event.target.value = '';
+                        expenseData.subtotal = expenseData.total;
                     }
 
-                    // --- EXTRACCIÓN DE PDF ---
-                    el('pdf-btn').addEventListener('click', () => el('pdf-file-input').click());
-                    el('pdf-file-input').addEventListener('change', handlePdfFiles);
+                    if (expenseData.total !== 0 && expenseData.ruc) {
+                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                        batch.set(newExpenseRef, expenseData);
+                        processedCount++;
+                    }
 
-                    async function handlePdfFiles(event) {
-                        const files = event.target.files;
-                        if (files.length === 0 || !activePettyCash) return;
-                        toggleLoading(true);
-                        let processedCount = 0;
-                        const batch = writeBatch(db);
+                } catch (error) {
+                    console.error(`Error procesando el archivo ${file.name}:`, error);
+                }
+            }
 
-                        for (const file of files) {
-                            try {
-                                const arrayBuffer = await file.arrayBuffer();
-                                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                                let fullText = '';
-                                for (let i = 1; i <= pdf.numPages; i++) {
-                                    const page = await pdf.getPage(i);
-                                    const textContent = await page.getTextContent();
-                                    fullText += textContent.items.map(item => item.str).join(' ') + ' ';
-                                }
+            try {
+                await batch.commit();
+                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`);
+                else alert("No se pudieron procesar los archivos XML. Verifique el formato.");
+            } catch (error) {
+                console.error("Error al guardar gastos de XML:", error);
+                alert("Ocurrió un error al guardar los gastos en la base de datos.");
+            }
 
-                                // Regex enhancments for SUNAT formats
-                                const rucMatch = fullText.match(/\b(20|10)\d{9}\b/);
-                                let seriesMatch = fullText.match(/\b([FBE0-9]{4}-\d{1,8})\b/i);
-                                const dateMatch = fullText.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/) || fullText.match(/\b(\d{4}[\/\-]\d{2}[\/\-]\d{2})\b/);
+            toggleLoading(false);
+            event.target.value = '';
+        }
 
-                                let ruc = rucMatch ? rucMatch[0] : '';
-                                let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
-                                let isRxH = fullText.toUpperCase().includes('RECIBO POR HONORARIOS') || (seriesNumber && seriesNumber.startsWith('E'));
-                                let type = isRxH ? 'RXH' : 'FACTURA';
+        // --- EXTRACCIÓN DE PDF ---
+        el('pdf-btn').addEventListener('click', () => el('pdf-file-input').click());
+        el('pdf-file-input').addEventListener('change', handlePdfFiles);
 
-                                let date = null;
-                                if (dateMatch) {
-                                    let dStr = dateMatch[1].replace(/-/g, '/');
-                                    let parts = dStr.split('/');
-                                    if (parts.length === 3) {
-                                        if (parts[0].length === 2 && parts[2].length === 4) {
-                                            date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
-                                        } else if (parts[0].length === 4) {
-                                            date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00Z`);
-                                        }
-                                    }
-                                }
-                                if (!date || isNaN(date.getTime())) date = new Date(); // fallback
+        async function handlePdfFiles(event) {
+            const files = event.target.files;
+            if (files.length === 0 || !activePettyCash) return;
+            toggleLoading(true);
+            let processedCount = 0;
+            const batch = writeBatch(db);
 
-                                let amountRegex = /(?:S\/|TOTAL|IMPORTE)[\s\:\$\.\,]*([\d]{1,3}(?:[,\.][\d]{3})*(?:[,\.][\d]{2}))/gi;
-                                let matches = [...fullText.matchAll(amountRegex)];
-                                let total = 0;
-                                if (matches.length > 0) {
-                                    let amounts = matches.map(m => parseFloat(m[1].replace(/,/g, '')));
-                                    total = Math.max(...amounts);
-                                } else {
-                                    let allNums = [...fullText.matchAll(/(?:\s|^)([\d]{1,6}\.\d{2})(?:\s|$)/g)].map(m => parseFloat(m[1]));
-                                    if (allNums.length > 0) total = Math.max(...allNums);
-                                }
+            for (const file of files) {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let fullText = '';
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map(item => item.str).join(' ') + ' ';
+                    }
 
-                                let subtotal = 0;
-                                let igv = 0;
-                                if (isRxH) {
-                                    subtotal = total;
-                                    igv = 0;
-                                } else {
-                                    subtotal = parseFloat((total / 1.18).toFixed(2));
-                                    igv = parseFloat((total - subtotal).toFixed(2));
-                                }
+                    // Regex enhancments for SUNAT formats
+                    const rucMatch = fullText.match(/\b(20|10)\d{9}\b/);
+                    let seriesMatch = fullText.match(/\b([FBE0-9]{4}-\d{1,8})\b/i);
+                    const dateMatch = fullText.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/) || fullText.match(/\b(\d{4}[\/\-]\d{2}[\/\-]\d{2})\b/);
 
-                                let expenseData = {
-                                    date: date,
-                                    seriesNumber: seriesNumber,
-                                    ruc: ruc,
-                                    name: 'Extraído de PDF',
-                                    description: file.name,
-                                    subtotal: subtotal,
-                                    igv: igv,
-                                    total: total,
-                                    type: type,
-                                    pc: '',
-                                    createdAt: serverTimestamp()
-                                };
+                    let ruc = rucMatch ? rucMatch[0] : '';
+                    let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
+                    let isRxH = fullText.toUpperCase().includes('RECIBO POR HONORARIOS') || (seriesNumber && seriesNumber.startsWith('E'));
+                    let type = isRxH ? 'RXH' : 'FACTURA';
 
-                                if (total > 0 && ruc) {
-                                    const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
-                                    batch.set(newExpenseRef, expenseData);
-                                    processedCount++;
-                                }
-
-                            } catch (error) {
-                                console.error(`Error procesando el PDF ${file.name}:`, error);
+                    let date = null;
+                    if (dateMatch) {
+                        let dStr = dateMatch[1].replace(/-/g, '/');
+                        let parts = dStr.split('/');
+                        if (parts.length === 3) {
+                            if (parts[0].length === 2 && parts[2].length === 4) {
+                                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
+                            } else if (parts[0].length === 4) {
+                                date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00Z`);
                             }
                         }
+                    }
+                    if (!date || isNaN(date.getTime())) date = new Date(); // fallback
 
+                    let amountRegex = /(?:S\/|TOTAL|IMPORTE)[\s\:\$\.\,]*([\d]{1,3}(?:[,\.][\d]{3})*(?:[,\.][\d]{2}))/gi;
+                    let matches = [...fullText.matchAll(amountRegex)];
+                    let total = 0;
+                    if (matches.length > 0) {
+                        let amounts = matches.map(m => parseFloat(m[1].replace(/,/g, '')));
+                        total = Math.max(...amounts);
+                    } else {
+                        let allNums = [...fullText.matchAll(/(?:\s|^)([\d]{1,6}\.\d{2})(?:\s|$)/g)].map(m => parseFloat(m[1]));
+                        if (allNums.length > 0) total = Math.max(...allNums);
+                    }
+
+                    let subtotal = 0;
+                    let igv = 0;
+                    if (isRxH) {
+                        subtotal = total;
+                        igv = 0;
+                    } else {
+                        subtotal = parseFloat((total / 1.18).toFixed(2));
+                        igv = parseFloat((total - subtotal).toFixed(2));
+                    }
+
+                    let expenseData = {
+                        date: date,
+                        seriesNumber: seriesNumber,
+                        ruc: ruc,
+                        name: 'Extraído de PDF',
+                        description: file.name,
+                        subtotal: subtotal,
+                        igv: igv,
+                        total: total,
+                        type: type,
+                        pc: '',
+                        fileUrl: null,
+                        createdAt: serverTimestamp()
+                    };
+
+                    if (total > 0 && ruc) {
                         try {
-                            await batch.commit();
-                            if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos PDF fueron agregados exitosamente. (Verifique los datos manualmente)`);
-                            else alert("No se pudieron procesar o encontrar montos válidos en los PDFs.");
-                        } catch (error) {
-                            console.error("Error al guardar gastos de PDF:", error);
-                            alert("Ocurrió un error al guardar los gastos en la base de datos.");
+                            const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+                            const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
+                            const snapshot = await uploadBytes(fileRef, file);
+                            expenseData.fileUrl = await getDownloadURL(snapshot.ref);
+                        } catch (uploadErr) {
+                            console.error("Error al subir archivo PDF a Storage:", uploadErr);
                         }
 
-                        toggleLoading(false);
-                        event.target.value = '';
+                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                        batch.set(newExpenseRef, expenseData);
+                        processedCount++;
                     }
-                });
+
+                } catch (error) {
+                    console.error(`Error procesando el PDF ${file.name}:`, error);
+                }
+            }
+
+            try {
+                await batch.commit();
+                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos PDF fueron agregados exitosamente. (Verifique los datos manualmente)`);
+                else alert("No se pudieron procesar o encontrar montos válidos en los PDFs.");
+            } catch (error) {
+                console.error("Error al guardar gastos de PDF:", error);
+                alert("Ocurrió un error al guardar los gastos en la base de datos.");
+            }
+
+            toggleLoading(false);
+            event.target.value = '';
+        }
     </script>
 </body>
 
