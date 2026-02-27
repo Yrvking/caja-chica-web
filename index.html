@@ -9,31 +9,63 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <style>
+        /* ═══════════════════════════════════════════════════════════════
+           🎨 CAJA CHICA WEB - UNIFIED SAAS INTERFACE
+           ═══════════════════════════════════════════════════════════════ */
+
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
         :root {
-            --primary: #0d6efd;
-            --primary-600: #0b5ed7;
-            --ink: #212529;
-            --muted: #6c757d;
-            --line: #dee2e6;
-            --bg: #f8f9fa;
-            --card: #ffffff;
-            --chip: #e9ecef;
-            --ok: #198754;
-            --bad: #dc3545;
+            /* 🔵 Brand Colors */
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --primary-light: #eff6ff;
+            --primary-glow: rgba(37, 99, 235, 0.15);
+
+            /* 🟢🔴 Semantic Colors */
+            --success-bg: #ecfdf5;
+            --success-text: #047857;
+            --danger-bg: #fef2f2;
+            --danger-text: #b91c1c;
+            --warning-bg: #fffbeb;
+            --warning-text: #b45309;
+
+            /* 🌑 Grays & Base */
+            --bg-app: #f1f5f9;
+            --bg-surface: #ffffff;
+            --bg-header: #f8fafc;
+
+            --text-main: #0f172a;
+            --text-body: #334155;
+            --text-muted: #64748b;
+
+            --border: #e2e8f0;
+
+            /* 📐 Dimensions */
+            --radius-md: 6px;
+            --radius-lg: 10px;
+
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
-        * {
+        /* ───────────────────────────────────────────────────────────────
+           1. RESET & LAYOUT
+           ─────────────────────────────────────────────────────────────── */
+        *,
+        *::before,
+        *::after {
             box-sizing: border-box;
         }
 
         body {
             margin: 0;
-            font-family: 'Inter', system-ui, sans-serif;
-            background: var(--bg);
-            color: var(--ink);
-            padding: 20px;
+            font-family: var(--font-sans);
+            background-color: var(--bg-app);
+            color: var(--text-body);
+            font-size: 13px;
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 16px 24px;
             display: flex;
             justify-content: center;
         }
@@ -41,6 +73,7 @@
         .app {
             width: 100%;
             max-width: 1400px;
+            margin: 0 auto;
         }
 
         .topbar {
@@ -69,70 +102,210 @@
             gap: 8px;
         }
 
+        /* ───────────────────────────────────────────────────────────────
+           2. COMPONENTES GLOBALES
+           ─────────────────────────────────────────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            gap: 6px;
+            font-family: var(--font-sans);
+            white-space: nowrap;
+        }
+
         .btn:disabled {
-            background-color: #9ca3af;
+            opacity: 0.6;
             cursor: not-allowed;
+            filter: grayscale(1);
         }
 
         .btn.primary {
             background: var(--primary);
-            color: #fff;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
-        .btn.primary:not(:disabled):hover {
-            background: var(--primary-600);
+        .btn.primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
         }
 
         .btn.ghost {
-            background: #fff;
-            border: 1px solid var(--line);
-            color: var(--ink);
+            background: white;
+            border-color: var(--border);
+            color: var(--text-body);
         }
 
         .btn.ghost:hover {
-            background: var(--bg);
+            background: var(--bg-header);
+            border-color: #cbd5e1;
+            color: var(--text-main);
         }
 
         .btn.danger {
-            background: var(--bad);
-            color: #fff;
+            background: var(--danger-bg);
+            color: var(--danger-text);
+        }
+
+        .btn.small {
+            padding: 4px 10px;
+            font-size: 11px;
+            height: 28px;
         }
 
         .btn-sm {
             padding: 5px 10px;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .icon-btn {
             background: transparent;
             padding: 4px;
-            color: var(--muted);
+            color: var(--text-muted);
+            border: 1px solid transparent;
         }
 
         .icon-btn:hover {
-            color: var(--ink);
+            color: var(--danger-text);
+            background: var(--danger-bg);
+            border-color: rgba(220, 38, 38, 0.2);
+        }
+
+        /* CARD UNIFICADA (El "Papel") */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-h {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .card-h b {
+            font-size: 1.05rem;
+        }
+
+        .card-b {
+            padding: 20px;
+        }
+
+        /* Inputs Professional */
+        input,
+        select,
+        textarea {
+            display: block;
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 13px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: white;
+            color: var(--text-main);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        input::placeholder {
+            color: #cbd5e1;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        /* ───────────────────────────────────────────────────────────────
+           3. TOPBAR & TABS MODERNOS
+           ─────────────────────────────────────────────────────────────── */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .who {
+            font-weight: 500;
+            color: var(--text-main);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .who::before {
+            content: '';
+            display: block;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
         }
 
         .tabs {
             display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 0px;
+            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            padding: 8px 20px 0;
+            border-radius: 10px 10px 0 0;
         }
 
         .tab {
-            padding: 10px 16px;
-            border: none;
             background: transparent;
-            border-bottom: 2px solid transparent;
-            color: var(--muted);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px 10px 0 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
             cursor: pointer;
-            font-weight: 700;
+            transition: all 0.25s ease;
+        }
+
+        .tab:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.8);
         }
 
         .tab.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
+            background: #3b5998;
+            color: white;
+            font-weight: 600;
         }
 
         .view {
@@ -141,119 +314,204 @@
 
         .view.active {
             display: block;
+            animation: fadeIn 0.3s ease-out;
         }
 
-        .card {
-            background: var(--card);
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, .05);
-            margin-bottom: 16px;
-            border: 1px solid var(--line);
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        .card-h {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--line);
-        }
-
-        .card-h b {
-            font-size: 1.1rem;
-        }
-
-        .card-b {
-            padding: 20px;
+        /* ───────────────────────────────────────────────────────────────
+           4. BRANDING & HEADER CAJA CHICA
+           ─────────────────────────────────────────────────────────────── */
+        .document-header {
+            background: linear-gradient(180deg, #3b5998 0%, #2d4a7c 30%, #1e3a5f 60%, #162d4d 100%);
+            padding: 0;
+            margin: 0;
+            position: relative;
+            border-radius: 0 0 0 0;
         }
 
         .brand {
             display: flex;
             justify-content: space-between;
-            gap: 16px;
-            align-items: flex-start;
-            padding: 12px 20px;
-            background-color: var(--chip);
-            border-radius: 8px;
-            margin-bottom: 20px;
+            align-items: center;
+            padding: 10px 24px;
+            background: rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 0;
         }
 
-        .brand img {
-            max-height: 42px;
+        #company-logo {
+            max-height: 26px;
+            background: white;
+            padding: 4px;
             border-radius: 4px;
         }
 
         .cinfo {
-            font-size: .86rem;
-            color: var(--muted);
             text-align: right;
-            line-height: 1.45;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.4;
         }
 
         .cinfo b {
-            color: var(--ink);
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        .form-group label {
-            display: block;
-            margin: 0 0 6px;
+            color: white;
+            font-size: 12px;
             font-weight: 600;
-            font-size: .9rem;
+            display: block;
+            margin-bottom: 2px;
         }
 
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            font-size: .95rem;
+        .title-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 14px 24px;
+            background: rgba(0, 0, 0, 0.15);
+            margin: 0;
+            flex-direction: column;
+            gap: 8px;
         }
 
+        .title-section h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            margin: 0;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            padding: 8px 24px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #caja-chica-status {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.4);
+            color: white;
+            text-transform: uppercase;
+        }
+
+        /* ───────────────────────────────────────────────────────────────
+           5. CAJAS DE SUMARIO (METADATA / PILLS)
+           ─────────────────────────────────────────────────────────────── */
         .summary-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            padding: 16px 24px;
+            background: var(--bg-surface);
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
         }
 
-        .summary-box {
-            background-color: var(--card);
-            padding: 15px;
+        .meta-card {
+            background: white;
             border-radius: 12px;
-            text-align: center;
-            border: 1px solid var(--line);
+            padding: 14px 18px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
-        .summary-box h3 {
-            margin-top: 0;
+        .meta-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), #60a5fa);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .meta-card:hover {
+            transform: translateY(-1px);
+            border-color: rgba(37, 99, 235, 0.3);
+        }
+
+        .meta-card:hover::before {
+            opacity: 1;
+        }
+
+        .meta-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .meta-card-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1d4ed8;
+        }
+
+        .meta-card-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .meta-card-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .meta-card-content span {
             font-size: 16px;
-            color: var(--muted);
+            color: var(--text-muted);
         }
 
-        .summary-box p {
-            margin-bottom: 0;
-            font-size: 24px;
-            font-weight: bold;
+        .meta-card-content input[type="number"] {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--primary-dark);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px 8px;
+            width: 100%;
+            text-align: right;
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border-color: rgba(16, 185, 129, 0.3);
         }
 
-        .summary-box input[type="number"] {
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            max-width: 150px;
+        .meta-card-content input[type="number"]:disabled {
+            background: transparent;
+            border-color: transparent;
+            padding: 0;
+            color: var(--text-main);
         }
 
         #balance.positive {
@@ -264,6 +522,9 @@
             color: var(--bad);
         }
 
+        /* ───────────────────────────────────────────────────────────────
+           6. TABLAS DE DATOS (Data Tables Modermas)
+           ─────────────────────────────────────────────────────────────── */
         .actions-container {
             display: flex;
             gap: 10px;
@@ -274,33 +535,60 @@
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
-        }
-
-        .data-table th,
-        .data-table td {
-            border-bottom: 1px solid var(--line);
-            padding: 6px 8px;
-            text-align: left;
-            vertical-align: middle;
+            white-space: nowrap;
+            font-size: 13px;
         }
 
         .data-table th {
-            background-color: var(--bg);
+            text-align: left;
+            padding: 12px 16px;
+            background: linear-gradient(180deg, #0f2744 0%, #162d4d 100%);
+            color: rgba(255, 255, 255, 0.95);
+            font-weight: 600;
+            font-size: 11px;
             text-transform: uppercase;
-            font-size: 0.75rem;
-            color: var(--muted);
+            letter-spacing: 0.05em;
+        }
+
+        .data-table th:first-child {
+            border-top-left-radius: 6px;
+        }
+
+        .data-table th:last-child {
+            border-top-right-radius: 6px;
+        }
+
+        .data-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            transition: background 0.15s ease;
+        }
+
+        .data-table tbody tr:nth-child(even) td {
+            background: #f8fafc;
+        }
+
+        .data-table tbody tr:hover td {
+            background: linear-gradient(90deg, var(--primary-light) 0%, #dbeafe 100%);
         }
 
         .data-table input,
         .data-table select {
             width: 100%;
-            min-width: 100px;
-            padding: 5px;
-            box-sizing: border-box;
-            font-size: 13px;
+            min-width: 90px;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            background: #fafbfc;
             border-radius: 6px;
-            border: 1px solid var(--line);
+            font-size: 13px;
+        }
+
+        .data-table input:focus,
+        .data-table select:focus {
+            background: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
         }
 
         .data-table .read-only-input {
@@ -310,6 +598,9 @@
             pointer-events: none;
         }
 
+        /* ───────────────────────────────────────────────────────────────
+           7. MODALES, LOADING & UTILIDADES
+           ─────────────────────────────────────────────────────────────── */
         .collapsible-content.collapsed {
             display: none;
         }
@@ -317,16 +608,18 @@
         .toggle-collapse {
             cursor: pointer;
             user-select: none;
-            font-weight: normal;
-            font-size: 0.8rem;
+            font-weight: 600;
+            font-size: 11px;
             color: var(--primary);
+            text-transform: uppercase;
         }
 
         .login-overlay,
         .loading-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, .55);
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -334,19 +627,27 @@
         }
 
         .login-card {
-            background: #fff;
+            background: white;
             border-radius: 16px;
-            padding: 22px 20px;
-            width: 100%;
-            max-width: 400px;
+            padding: 32px;
+            width: 90%;
+            max-width: 440px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+        }
+
+        .login-card h3 {
+            margin-top: 0;
+            font-size: 1.3rem;
+            color: var(--text-main);
         }
 
         .loading-spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid var(--primary);
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
         }
 
@@ -359,6 +660,24 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* Helpers */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
     </style>
 </head>
 
@@ -369,62 +688,102 @@
     </div>
 
     <div class="app">
-        <div class="topbar">
-            <div id="who" class="who">No autenticado</div>
-            <button id="btn-logout" class="btn ghost" style="display:none">Cerrar Sesión</button>
-        </div>
+        <!-- HEADER PRINCIPAL -->
+        <div class="document-header">
+            <div class="brand">
+                <img id="company-logo" alt="Logo" style="display:none;" />
+                <div id="company-info" class="cinfo"></div>
+            </div>
+            <div class="title-section">
+                <h2 id="caja-chica-title">SISTEMA DE CAJA CHICA WEB</h2>
+                <div id="caja-chica-status" style="display:none;"></div>
+                <div id="who" class="who" style="background: rgba(255,255,255,0.9); margin-top: 5px;">No autenticado
+                </div>
+                <button id="btn-logout" class="btn ghost small" style="display:none; margin-top: 8px;">Cerrar
+                    Sesión</button>
+            </div>
 
-        <div id="app-content" style="display:none">
             <div class="tabs">
                 <button class="tab active" data-view="caja-chica">Caja Chica</button>
                 <button class="tab" data-view="history">Historial</button>
                 <button id="tab-admin" class="tab" data-view="settings" style="display:none">Ajustes</button>
             </div>
+        </div>
 
+        <div id="app-content" style="display:none; padding-top: 20px;">
+            <!-- VISTA CAJA CHICA -->
             <div id="caja-chica-view" class="view active">
-                <div id="brand-header" class="brand">
-                    <div style="flex-grow: 1;">
-                        <h2 id="caja-chica-number" style="margin: 0; font-size: 1.2rem;"></h2>
-                        <p id="caja-chica-status" style="margin: 4px 0 0; font-weight: 600;"></p>
-                        <p id="caja-chica-obra-info"
-                            style="margin: 4px 0 0; font-size: 0.9rem; color: var(--primary); font-weight: bold;"></p>
-                    </div>
-                    <img id="company-logo" alt="Logo" style="display:none;">
-                    <div id="company-info" class="cinfo"></div>
-                </div>
-                <div class="summary-container">
-                    <div class="summary-box">
-                        <h3>MONTO INICIAL</h3>
-                        <div style="display:flex; flex-direction: column; align-items:center; gap:10px;">
-                            <select id="obra-select"
-                                style="padding: 8px; border-radius: 5px; border: 1px solid #ccc; width: 100%; max-width: 250px;">
+                <div class="summary-container"
+                    style="border-radius: var(--radius-lg); margin-bottom: 24px; border: 1px solid var(--border);">
+
+                    <div class="meta-card">
+                        <div class="meta-card-header">
+                            <div class="meta-card-icon"
+                                style="background: linear-gradient(135deg, #fef08a 0%, #fde047 100%); color: #ca8a04;">
+                                💰</div>
+                            <div class="meta-card-label">Monto Asignado / Inicial</div>
+                        </div>
+                        <div class="meta-card-content" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                            <select id="obra-select" style="font-size: 11px; padding: 6px; margin-bottom: 4px;">
                                 <option value="">-- Seleccionar Obra --</option>
                             </select>
-                            <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
-                                <span>S/</span>
+                            <div style="display:flex; align-items:center; gap: 8px;">
+                                <span style="font-size: 16px;">S/</span>
                                 <input type="number" id="initial-amount-input" value="0.00" step="0.01">
-                                <button id="save-initial-amount-btn" class="btn primary btn-sm">Iniciar Caja</button>
+                            </div>
+                            <div style="display: flex; gap: 6px; margin-top: 4px;">
+                                <button id="save-initial-amount-btn" class="btn primary btn-sm" style="flex:1;">Iniciar
+                                    Caja</button>
+                                <button id="edit-initial-amount-btn" class="btn ghost btn-sm" style="display:none;"
+                                    title="Editar Monto Inicial">✏️ Editar</button>
                             </div>
                         </div>
                     </div>
-                    <div class="summary-box">
-                        <h3>TOTAL GASTADO</h3>
-                        <p id="total-expenses">S/ 0.00</p>
+
+                    <div class="meta-card">
+                        <div class="meta-card-header">
+                            <div class="meta-card-icon"
+                                style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); color: #dc2626;">
+                                📉</div>
+                            <div class="meta-card-label">Total Gastos (Egresos)</div>
+                        </div>
+                        <div class="meta-card-content" style="height: 100%; font-size: 28px;">
+                            <span>S/</span>
+                            <div id="total-expenses">0.00</div>
+                        </div>
                     </div>
-                    <div class="summary-box">
-                        <h3>SALDO</h3>
-                        <p id="balance" class="positive">S/ 0.00</p>
+
+                    <div class="meta-card">
+                        <div class="meta-card-header">
+                            <div class="meta-card-icon"
+                                style="background: linear-gradient(135deg, #a7f3d0 0%, #6ee7b7 100%); color: #059669;">
+                                ⚖️</div>
+                            <div class="meta-card-label">Saldo Disponible (Caja)</div>
+                        </div>
+                        <div class="meta-card-content"
+                            style="height: 100%; font-size: 28px; color: var(--primary-dark);">
+                            <span>S/</span>
+                            <div id="balance" class="positive">0.00</div>
+                        </div>
                     </div>
+
                 </div>
+
                 <div class="card">
-                    <div class="card-h"><b>Registro de Gastos</b></div>
+                    <div class="card-h">
+                        <b>Detalle de Gastos</b>
+                        <p id="caja-chica-number"
+                            style="margin: 0; font-size: 0.9rem; color: var(--text-muted); font-weight: normal;"></p>
+                    </div>
                     <div class="card-b">
                         <div class="actions-container">
-                            <button id="xml-btn" class="btn ghost">Extraer de XML</button>
+                            <button id="add-manual-btn" class="btn primary">+ Agregar Gasto Manual</button>
+                            <button id="xml-btn" class="btn ghost">📄 Extraer de XML</button>
                             <input type="file" id="xml-file-input" style="display: none;" accept=".xml" multiple>
-                            <button id="pdf-btn" class="btn ghost">Extraer de PDF</button>
+                            <button id="pdf-btn" class="btn ghost"
+                                style="background: #fef2f2; border-color: #fca5a5; color: #b91c1c;">📄 Extraer de
+                                PDF</button>
                             <input type="file" id="pdf-file-input" style="display: none;" accept=".pdf" multiple>
-                            <button id="add-manual-btn" class="btn primary">+ Agregar Gasto</button>
                         </div>
                         <div style="overflow-x:auto;">
                             <table class="data-table">
@@ -871,6 +1230,8 @@
                     obraSelect.style.display = 'none';
                 }
                 saveInitialAmountBtn.style.display = 'none';
+                const editBtn = el('edit-initial-amount-btn');
+                if (editBtn) editBtn.style.display = 'inline-flex';
                 el('add-manual-btn').disabled = false;
                 el('xml-btn').disabled = false;
                 if (el('pdf-btn')) el('pdf-btn').disabled = false;
@@ -1113,12 +1474,53 @@
                     alert(`Caja ${newCajaNumero} iniciada con S/ ${amount.toFixed(2)}`);
                 } catch (error) {
                     console.error("Error al iniciar caja:", error);
-                    alert("No se pudo iniciar la caja. Asegúrese de tener permisos.");
+                    alert("No se pudo iniciar la caja. Asegúrese de tener permisos. Error: " + error.message);
                 } finally {
                     toggleLoading(false);
                 }
             }
         });
+
+        const editBtn = el('edit-initial-amount-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', async () => {
+                const input = el('initial-amount-input');
+                if (input.disabled) {
+                    // Habilitar edición
+                    input.disabled = false;
+                    input.focus();
+                    editBtn.innerHTML = '💾 Guardar';
+                    editBtn.classList.remove('ghost');
+                    editBtn.classList.add('primary');
+                } else {
+                    // Guardar edición
+                    const newAmount = parseFloat(input.value);
+                    if (isNaN(newAmount) || newAmount <= 0) {
+                        alert("El monto debe ser un número mayor a 0.");
+                        return;
+                    }
+                    if (confirm(`¿Actualizar el monto inicial a S/ ${newAmount.toFixed(2)}?`)) {
+                        toggleLoading(true);
+                        try {
+                            await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid), {
+                                initialAmount: newAmount
+                            });
+                            // La UI se actualizará sola por el onSnapshot
+                            alert("Monto actualizado.");
+                            input.disabled = true;
+                            editBtn.innerHTML = '✏️ Editar';
+                            editBtn.classList.add('ghost');
+                            editBtn.classList.remove('primary');
+                        } catch (err) {
+                            console.error(err);
+                            alert("Error al actualizar: " + err.message);
+                        } finally {
+                            toggleLoading(false);
+                        }
+                    }
+                }
+            });
+        }
 
         el('expenses-table-body').addEventListener('change', async (e) => {
             if (e.target.matches('input, select')) {
@@ -1212,165 +1614,168 @@
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(xmlString, "application/xml");
 
+                    // Validar si el XML se parseó correctamente
+                    if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                        console.error("Error al parsear XML:", file.name);
+                        alert(`El archivo ${file.name} no es un XML válido.`);
+                        continue;
+                    }
+
                     const getNodeText = (selectors) => {
                         for (const selector of selectors) {
-                            const node = xmlDoc.querySelector(selector.replace(/:/g, '\\:'));
-                            if (node) return node.textContent.trim();
+                            try {
+                                const node = xmlDoc.querySelector(selector.replace(/:/g, '\\:'));
+                                if (node) return node.textContent.trim();
+                            } catch (e) {
+                                console.warn("Selector fallido:", selector);
+                            }
                         }
                         return '';
                     };
 
                     const idNode = getNodeText(['Invoice > cbc\\:ID', 'CreditNote > cbc\\:ID', 'Retention > cbc\\:ID']);
+                    if (!idNode) {
+                        alert(`El archivo ${file.name} no parece ser un documento UBL válido de SUNAT.`);
+                        continue;
+                    }
+
+                    // Intentar recuperar el RUC, nombre, subtotales
+                    const totalStr = getNodeText(['LegalMonetaryTotal > cbc\\:PayableAmount', 'LegalMonetaryTotal > cbc\\:TaxInclusiveAmount', 'Retention > cbc\\:TotalInvoiceAmount']);
+                    const igvStr = getNodeText(['TaxTotal > cbc\\:TaxAmount']);
+
+                    let total = parseFloat(totalStr) || 0;
+                    let igv = parseFloat(igvStr) || 0;
+                    let subtotal = total - igv;
 
                     let expenseData = {
-                        date: new Date(getNodeText(['Invoice > cbc\\:IssueDate', 'CreditNote > cbc\\:IssueDate', 'Retention > cbc\\:IssueDate'])),
+                        date: new Date(getNodeText(['Invoice > cbc\\:IssueDate', 'CreditNote > cbc\\:IssueDate', 'Retention > cbc\\:IssueDate']) || new Date()),
                         seriesNumber: idNode,
                         ruc: getNodeText(['AccountingSupplierParty > Party > PartyIdentification > cbc\\:ID', 'AccountingSupplierParty > cbc\\:CustomerAssignedAccountID', 'AgentParty > PartyIdentification > cbc\\:ID']),
-                        name: getNodeText(['AccountingSupplierParty > Party > PartyLegalEntity > cbc\\:RegistrationName', 'AccountingSupplierParty > Party > PartyName > cbc\\:Name', 'AgentParty > PartyLegalEntity > cbc\\:RegistrationName']),
-                        description: getNodeText(['InvoiceLine > Item > cbc\\:Description', 'CreditNoteLine > Item > cbc\\:Description', 'InvoiceLine > cbc\\:Note']),
-                        subtotal: parseFloat(getNodeText(['LegalMonetaryTotal > cbc\\:LineExtensionAmount', 'Retention > cbc\\:TotalInvoiceAmount'])) || 0,
-                        igv: parseFloat(getNodeText(['TaxTotal > cbc\\:TaxAmount'])) || 0,
-                        total: parseFloat(getNodeText(['LegalMonetaryTotal > cbc\\:PayableAmount', 'Retention > cbc\\:TotalInvoiceAmount'])) || 0,
+                        name: getNodeText(['AccountingSupplierParty > Party > PartyName > cbc\\:Name', 'AccountingSupplierParty > Party > PartyLegalEntity > cbc\\:RegistrationName', 'AgentParty > PartyLegalEntity > cbc\\:RegistrationName']),
+                        description: getNodeText(['InvoiceLine > Item > cbc\\:Description', 'CreditNoteLine > Item > cbc\\:Description', 'InvoiceLine > cbc\\:Note']) || 'Gasto importado',
+                        subtotal: subtotal,
+                        igv: igv,
+                        total: total,
                         type: xmlDoc.querySelector('CreditNote') ? 'NOTA DE CREDITO' : 'FACTURA',
                         pc: '',
                         createdAt: serverTimestamp()
                     };
 
-                    const taxCategory = xmlDoc.querySelector("InvoiceLine > TaxTotal > TaxSubtotal > TaxCategory > cbc\\:ID");
-                    if ((taxCategory && taxCategory.textContent.includes('RET 4TA')) || xmlDoc.querySelector('Retention')) {
+                    // Detectar si es un RxH (Recibo por Honorarios)
+                    const isRxH = xmlDoc.querySelector('Retention') ||
+                        Array.from(xmlDoc.querySelectorAll('TaxCategory > cbc\\:ID')).some(node => node.textContent.includes('RET'));
+
+                    if (isRxH) {
                         expenseData.type = 'RXH';
-                        expenseData.subtotal = expenseData.total;
                         expenseData.igv = 0;
+                        event.target.value = '';
                     }
 
-                    if (expenseData.total !== 0 && expenseData.date && expenseData.ruc) {
-                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
-                        batch.set(newExpenseRef, expenseData);
-                        processedCount++;
-                    }
+                    // --- EXTRACCIÓN DE PDF ---
+                    el('pdf-btn').addEventListener('click', () => el('pdf-file-input').click());
+                    el('pdf-file-input').addEventListener('change', handlePdfFiles);
 
-                } catch (error) {
-                    console.error(`Error procesando el archivo ${file.name}:`, error);
-                }
-            }
+                    async function handlePdfFiles(event) {
+                        const files = event.target.files;
+                        if (files.length === 0 || !activePettyCash) return;
+                        toggleLoading(true);
+                        let processedCount = 0;
+                        const batch = writeBatch(db);
 
-            try {
-                await batch.commit();
-                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`);
-                else alert("No se pudieron procesar los archivos XML. Verifique el formato.");
-            } catch (error) {
-                console.error("Error al guardar gastos de XML:", error);
-                alert("Ocurrió un error al guardar los gastos en la base de datos.");
-            }
+                        for (const file of files) {
+                            try {
+                                const arrayBuffer = await file.arrayBuffer();
+                                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                                let fullText = '';
+                                for (let i = 1; i <= pdf.numPages; i++) {
+                                    const page = await pdf.getPage(i);
+                                    const textContent = await page.getTextContent();
+                                    fullText += textContent.items.map(item => item.str).join(' ') + ' ';
+                                }
 
-            toggleLoading(false);
-            event.target.value = '';
-        }
+                                // Regex enhancments for SUNAT formats
+                                const rucMatch = fullText.match(/\b(20|10)\d{9}\b/);
+                                let seriesMatch = fullText.match(/\b([FBE0-9]{4}-\d{1,8})\b/i);
+                                const dateMatch = fullText.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/) || fullText.match(/\b(\d{4}[\/\-]\d{2}[\/\-]\d{2})\b/);
 
-        // --- EXTRACCIÓN DE PDF ---
-        el('pdf-btn').addEventListener('click', () => el('pdf-file-input').click());
-        el('pdf-file-input').addEventListener('change', handlePdfFiles);
+                                let ruc = rucMatch ? rucMatch[0] : '';
+                                let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
+                                let isRxH = fullText.toUpperCase().includes('RECIBO POR HONORARIOS') || (seriesNumber && seriesNumber.startsWith('E'));
+                                let type = isRxH ? 'RXH' : 'FACTURA';
 
-        async function handlePdfFiles(event) {
-            const files = event.target.files;
-            if (files.length === 0 || !activePettyCash) return;
-            toggleLoading(true);
-            let processedCount = 0;
-            const batch = writeBatch(db);
+                                let date = null;
+                                if (dateMatch) {
+                                    let dStr = dateMatch[1].replace(/-/g, '/');
+                                    let parts = dStr.split('/');
+                                    if (parts.length === 3) {
+                                        if (parts[0].length === 2 && parts[2].length === 4) {
+                                            date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
+                                        } else if (parts[0].length === 4) {
+                                            date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00Z`);
+                                        }
+                                    }
+                                }
+                                if (!date || isNaN(date.getTime())) date = new Date(); // fallback
 
-            for (const file of files) {
-                try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let fullText = '';
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        fullText += textContent.items.map(item => item.str).join(' ') + ' ';
-                    }
+                                let amountRegex = /(?:S\/|TOTAL|IMPORTE)[\s\:\$\.\,]*([\d]{1,3}(?:[,\.][\d]{3})*(?:[,\.][\d]{2}))/gi;
+                                let matches = [...fullText.matchAll(amountRegex)];
+                                let total = 0;
+                                if (matches.length > 0) {
+                                    let amounts = matches.map(m => parseFloat(m[1].replace(/,/g, '')));
+                                    total = Math.max(...amounts);
+                                } else {
+                                    let allNums = [...fullText.matchAll(/(?:\s|^)([\d]{1,6}\.\d{2})(?:\s|$)/g)].map(m => parseFloat(m[1]));
+                                    if (allNums.length > 0) total = Math.max(...allNums);
+                                }
 
-                    // regex extraction
-                    const rucMatch = fullText.match(/\b(20|10)\d{9}\b/);
-                    let seriesMatch = fullText.match(/\b([FBE][0-9A-Z]{3}-\d+)\b/);
-                    const dateMatch = fullText.match(/\b(\d{2}[\/\-]\d{2}[\/\-]\d{4})\b/) || fullText.match(/\b(\d{4}[\/\-]\d{2}[\/\-]\d{2})\b/);
+                                let subtotal = 0;
+                                let igv = 0;
+                                if (isRxH) {
+                                    subtotal = total;
+                                    igv = 0;
+                                } else {
+                                    subtotal = parseFloat((total / 1.18).toFixed(2));
+                                    igv = parseFloat((total - subtotal).toFixed(2));
+                                }
 
-                    let ruc = rucMatch ? rucMatch[0] : '';
-                    let seriesNumber = seriesMatch ? seriesMatch[1] : '';
-                    let isRxH = fullText.toUpperCase().includes('RECIBO POR HONORARIOS') || (seriesNumber && seriesNumber.startsWith('E'));
-                    let type = isRxH ? 'RXH' : 'FACTURA';
+                                let expenseData = {
+                                    date: date,
+                                    seriesNumber: seriesNumber,
+                                    ruc: ruc,
+                                    name: 'Extraído de PDF',
+                                    description: file.name,
+                                    subtotal: subtotal,
+                                    igv: igv,
+                                    total: total,
+                                    type: type,
+                                    pc: '',
+                                    createdAt: serverTimestamp()
+                                };
 
-                    let date = null;
-                    if (dateMatch) {
-                        let dStr = dateMatch[1].replace(/-/g, '/');
-                        let parts = dStr.split('/');
-                        if (parts.length === 3) {
-                            if (parts[0].length === 2 && parts[2].length === 4) {
-                                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
-                            } else if (parts[0].length === 4) {
-                                date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00Z`);
+                                if (total > 0 && ruc) {
+                                    const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                                    batch.set(newExpenseRef, expenseData);
+                                    processedCount++;
+                                }
+
+                            } catch (error) {
+                                console.error(`Error procesando el PDF ${file.name}:`, error);
                             }
                         }
+
+                        try {
+                            await batch.commit();
+                            if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos PDF fueron agregados exitosamente. (Verifique los datos manualmente)`);
+                            else alert("No se pudieron procesar o encontrar montos válidos en los PDFs.");
+                        } catch (error) {
+                            console.error("Error al guardar gastos de PDF:", error);
+                            alert("Ocurrió un error al guardar los gastos en la base de datos.");
+                        }
+
+                        toggleLoading(false);
+                        event.target.value = '';
                     }
-                    if (!date || isNaN(date.getTime())) date = new Date(); // fallback
-
-                    let amountRegex = /(?:S\/|TOTAL|IMPORTE)[\s\:\$\.\,]*([\d,]+\.\d{2})/gi;
-                    let matches = [...fullText.matchAll(amountRegex)];
-                    let total = 0;
-                    if (matches.length > 0) {
-                        let amounts = matches.map(m => parseFloat(m[1].replace(/,/g, '')));
-                        total = Math.max(...amounts);
-                    } else {
-                        let allNums = [...fullText.matchAll(/(?:\s|^)([\d]{1,6}\.\d{2})(?:\s|$)/g)].map(m => parseFloat(m[1]));
-                        if (allNums.length > 0) total = Math.max(...allNums);
-                    }
-
-                    let subtotal = 0;
-                    let igv = 0;
-                    if (isRxH) {
-                        subtotal = total;
-                        igv = 0;
-                    } else {
-                        subtotal = parseFloat((total / 1.18).toFixed(2));
-                        igv = parseFloat((total - subtotal).toFixed(2));
-                    }
-
-                    let expenseData = {
-                        date: date,
-                        seriesNumber: seriesNumber,
-                        ruc: ruc,
-                        name: 'Extraído de PDF',
-                        description: file.name,
-                        subtotal: subtotal,
-                        igv: igv,
-                        total: total,
-                        type: type,
-                        pc: '',
-                        createdAt: serverTimestamp()
-                    };
-
-                    if (total > 0 && ruc) {
-                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
-                        batch.set(newExpenseRef, expenseData);
-                        processedCount++;
-                    }
-
-                } catch (error) {
-                    console.error(`Error procesando el PDF ${file.name}:`, error);
-                }
-            }
-
-            try {
-                await batch.commit();
-                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos PDF fueron agregados exitosamente. (Verifique los datos manualmente)`);
-                else alert("No se pudieron procesar o encontrar montos válidos en los PDFs.");
-            } catch (error) {
-                console.error("Error al guardar gastos de PDF:", error);
-                alert("Ocurrió un error al guardar los gastos en la base de datos.");
-            }
-
-            toggleLoading(false);
-            event.target.value = '';
-        }
+                });
     </script>
 </body>
 
