@@ -1210,6 +1210,112 @@
             });
         }
 
+        function renderObrasDropdowns() {
+            const obraSelect = el('obra-select');
+            const filterObra = el('filter-obra');
+            if (!obras) return;
+            const optionsHtml = obras.map(o => `<option value="${o.id}">${o.codigo || ''} - ${o.nombre || ''}</option>`).join('');
+
+            if (obraSelect) {
+                const currentVal = obraSelect.value;
+                obraSelect.innerHTML = '<option value="">-- Seleccionar Obra --</option>' + optionsHtml;
+                obraSelect.value = currentVal;
+            }
+            if (filterObra) {
+                const currentVal = filterObra.value;
+                filterObra.innerHTML = '<option value="">Todas las Obras</option>' + optionsHtml;
+                filterObra.value = currentVal;
+            }
+        }
+
+        function renderObrasTable() {
+            const tbody = el('obras-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            obras.forEach(obra => {
+                const row = document.createElement('tr');
+                row.dataset.id = obra.id;
+                row.innerHTML = `
+                    <td>${obra.codigo || ''}</td>
+                    <td>${obra.nombre || ''}</td>
+                    <td><button class="btn danger btn-sm" data-action="delete-obra">Eliminar</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateHistoryFilters() {
+            const filterResponsable = el('filter-responsable');
+            if (!filterResponsable || !historyBoxes) return;
+            const owners = [...new Set(historyBoxes.map(b => b.ownerName).filter(Boolean))];
+            const currentVal = filterResponsable.value;
+            filterResponsable.innerHTML = '<option value="">Todos los Responsables</option>' +
+                owners.map(name => `<option value="${name}">${name}</option>`).join('');
+            filterResponsable.value = currentVal;
+        }
+
+        function renderHistoryView() {
+            const tbody = el('history-table-body');
+            const table = el('history-table');
+            const emptyMsg = el('history-empty-msg');
+            const summaryContainer = el('history-summary');
+            if (!tbody) return;
+
+            const obraFilterId = el('filter-obra')?.value;
+            const resFilterName = el('filter-responsable')?.value;
+
+            let filtered = historyBoxes || [];
+            if (obraFilterId) filtered = filtered.filter(b => b.obraId === obraFilterId);
+            if (resFilterName) filtered = filtered.filter(b => b.ownerName === resFilterName);
+
+            if (filtered.length === 0) {
+                table.style.display = 'none';
+                summaryContainer.style.display = 'none';
+                emptyMsg.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            summaryContainer.style.display = 'grid';
+            emptyMsg.style.display = 'none';
+            tbody.innerHTML = '';
+
+            let sumAsignado = 0;
+            let sumGastado = 0;
+            let sumSaldo = 0;
+
+            filtered.forEach(box => {
+                const tr = document.createElement('tr');
+                const closeDate = box.closedAt && box.closedAt.seconds ? new Date(box.closedAt.seconds * 1000).toLocaleString('es-PE') : 'N/A';
+                const initial = box.initialAmount || 0;
+                const total = box.totalGastado || 0;
+                const saldo = initial - total;
+
+                sumAsignado += initial;
+                sumGastado += total;
+                sumSaldo += saldo;
+
+                tr.innerHTML = `
+                    <td>${box.cajaNumero || 'S/N'}</td>
+                    <td>${closeDate}</td>
+                    <td>${box.obraNombre || 'General'}</td>
+                    <td>${box.ownerName || box.ownerId}</td>
+                    <td>S/ ${initial.toFixed(2)}</td>
+                    <td>S/ ${total.toFixed(2)}</td>
+                    <td style="color:${saldo >= 0 ? 'var(--success-text)' : 'var(--danger-text)'}">S/ ${saldo.toFixed(2)}</td>
+                    <td><span style="font-size:10px; padding:4px 8px; border-radius:12px; background:var(--danger-bg); color:var(--danger-text)">${box.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const elTotalAsignado = el('hist-total-asignado');
+            if (elTotalAsignado) elTotalAsignado.textContent = `S/ ${sumAsignado.toFixed(2)}`;
+            const elTotalGastado = el('hist-total-gastado');
+            if (elTotalGastado) elTotalGastado.textContent = `S/ ${sumGastado.toFixed(2)}`;
+            const elSaldoFinal = el('hist-saldo-final');
+            if (elSaldoFinal) elSaldoFinal.textContent = `S/ ${sumSaldo.toFixed(2)}`;
+        }
+
         function updateActiveBoxUI() {
             const initialAmountInput = el('initial-amount-input');
             const saveInitialAmountBtn = el('save-initial-amount-btn');
@@ -1328,6 +1434,8 @@
                     if (confirm('¿Eliminar Partida Contable?')) await deleteDoc(doc(db, "partidasContables", row.dataset.id));
                 } else if (action === 'delete-empresa') {
                     if (confirm('¿Eliminar Empresa?')) await deleteDoc(doc(db, "empresas", row.dataset.id));
+                } else if (action === 'delete-obra') {
+                    if (confirm('¿Eliminar Obra?')) await deleteDoc(doc(db, "obras", row.dataset.id));
                 }
             } catch (error) {
                 console.error("Error en Ajustes:", error);
