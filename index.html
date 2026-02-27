@@ -2060,8 +2060,11 @@
                     }
 
                     // ── SERIE Y NÚMERO ──────────────────────────────────────────────
-                    const seriesMatch = fullText.match(/\b([FBECR]\d{3}-\d{1,8})\b/i)
-                        || fullText.match(/\b([FBECR]-\d{3}-\d{1,8})\b/i);
+                    // Formato SUNAT: [F|B|E|R|C|N][A-Z0-9]{3}-[0-9]{1,8}
+                    // Ejemplos: F001-00001, FI25-019126, B001-00001, E001-00001
+                    const seriesMatch = fullText.match(/\b([FBECR][A-Z0-9]{3}[-]\d{1,8})\b/i)
+                        || fullText.match(/\b([FBECR][A-Z0-9]{2}[-]\d{1,8})\b/i)
+                        || fullText.match(/\b([FBECR][-][A-Z0-9]{3}[-]\d{1,8})\b/i);
                     const seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
 
                     // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
@@ -2115,14 +2118,47 @@
                         if (!total && subtotal && igv) total = parseFloat((subtotal + igv).toFixed(2));
                     }
 
-                    // ── DESCRIPCIÓN ─────────────────────────────────────────────────
+                    // ── DESCRIPCIÓN: extraer items reales del detalle ─────────────
                     let descripcion = '';
-                    // Buscar línea después de cabeceras de detalle SUNAT
-                    const descMatch = fullText.match(/(?:DESCRIPCI[OÓ]N|DETALLE|CONCEPTO|BIEN.{0,10}SERVICIO)[:\s\n]+([^\n]{5,120})/i);
-                    if (descMatch) descripcion = descMatch[1].trim();
-                    // Fallback: primera línea que parece descripción (no números, no labels conocidos)
+                    // 1) Encontrar el header de la tabla de detalle
+                    const detailHeaderIdx = lines.findIndex(l =>
+                        /(?:descripci[oó]n|nombre.{0,15}descripci|bien.{0,10}servicio|detalle)/i.test(l)
+                    );
+                    // 2) Encontrar el inicio de la sección de totales
+                    const totalesIdx = lines.findIndex((l, i) =>
+                        i > Math.max(detailHeaderIdx, 0) &&
+                        /(?:^son:|op(?:eraciones?)?\.?\s*grav|importe\s+total|I\.G\.V|sub.*total|operaciones\s+grav)/i.test(l)
+                    );
+                    // 3) Extraer lineas de productos entre header y totales
+                    if (detailHeaderIdx >= 0) {
+                        const endIdx = totalesIdx > detailHeaderIdx ? totalesIdx : lines.length;
+                        const detailLines = lines.slice(detailHeaderIdx + 1, endIdx);
+                        // Filtrar: líneas con texto real (no puramente números, no headers, no vacías)
+                        const colHeaders = /^(código|codigo|cantidad|unid|uni|precio|total|garantia|p\.u|pu|cod|sub|igv|det)/i;
+                        const isProductLine = l => {
+                            const t = l.trim();
+                            return t.length > 6
+                                && /[a-záéíóúñ]{3,}/i.test(t)   // tiene letras
+                                && !colHeaders.test(t)              // no es cabecera
+                                && !/^\d+\.\d{2}$/.test(t)          // no es solo un monto
+                                && !/^\d{1,3}$/.test(t)            // no es solo un número
+                                && !/^(?:meses|und?|uni|pza|cja|kg)/i.test(t); // no es solo unidad
+                        };
+                        const productLines = detailLines.filter(isProductLine);
+                        if (productLines.length > 0) {
+                            const first = productLines[0].substring(0, 70);
+                            descripcion = productLines.length === 1
+                                ? first
+                                : `${first}... (+${productLines.length - 1} más)`;
+                        }
+                    }
+                    // Fallback: primera línea que parece descripción
                     if (!descripcion) {
-                        const skipWords = /^(RUC|FECHA|TOTAL|IGV|SUB|IMPORTE|FACT|BOL|SERIE|N[°ú]|BASE|VALOR|OP\.)/i;
+                        const descMatch = fullText.match(/(?:DESCRIPCI[OÓ]N|DETALLE|CONCEPTO)[:\s\n]+([^\n]{5,120})/i);
+                        if (descMatch) descripcion = descMatch[1].trim();
+                    }
+                    if (!descripcion) {
+                        const skipWords = /^(RUC|FECHA|TOTAL|IGV|SUB|IMPORTE|FACT|BOL|SERIE|N[°ú]|BASE|VALOR|OP\.|Son:)/i;
                         descripcion = lines.find(l => l.length > 10 && !skipWords.test(l) && !/^\d/.test(l) && !/^S\//.test(l)) || file.name;
                     }
 
