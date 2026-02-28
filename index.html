@@ -957,10 +957,11 @@
                                         <th data-sort="name">Razón Social<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="pc">PC<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="description">Descripción<i class="sort-arrow">⇅</i></th>
-                                        <th data-sort="observacion">Observación<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="subtotal">Subtotal<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="igv">IGV<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="total">Total<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="moneda">Mon.<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="observacion">Observación<i class="sort-arrow">⇅</i></th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -1507,10 +1508,15 @@
                 <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social"></td>
                 <td title="${esc(expense.pc)}"><select data-field="pc" style="font-size:10px;"><option value="">PC...</option>${pcOptions}</select></td>
                 <td title="${esc(expense.description)}"><input type="text" data-field="description" value="${esc(expense.description)}" placeholder="Descripción"></td>
-                <td title="${esc(expense.observacion)}"><input type="text" data-field="observacion" value="${esc(expense.observacion)}" placeholder="Opcional..."></td>
                 <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}" style="text-align:right;"></td>
                 <td><input type="number" data-field="igv"      value="${(expense.igv || 0).toFixed(2)}"      style="text-align:right; color:var(--text-muted);" disabled></td>
                 <td><input type="number" data-field="total"    value="${(expense.total || 0).toFixed(2)}"    style="text-align:right; font-weight:600;"></td>
+                <td><select data-field="moneda" style="width:60px; font-size:11px;">
+                    <option value="PEN" ${(expense.moneda || 'PEN') === 'PEN' ? 'selected' : ''}>S/</option>
+                    <option value="USD" ${expense.moneda === 'USD' ? 'selected' : ''}>USD</option>
+                    <option value="EUR" ${expense.moneda === 'EUR' ? 'selected' : ''}>EUR</option>
+                </select></td>
+                <td title="${esc(expense.observacion)}"><input type="text" data-field="observacion" value="${esc(expense.observacion)}" placeholder="Opcional..."></td>
                 <td style="padding:2px 3px; white-space:nowrap;">
                     <div style="display:flex; align-items:center; gap:2px; justify-content:center;">
                         ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver comprobante" style="font-size:13px; line-height:1;">📄</a>` : ''}
@@ -1534,8 +1540,9 @@
 
             const initialAmount = activePettyCash?.initialAmount || 0;
             const balance = initialAmount - totalExpenses;
-            el('total-expenses').textContent = `S/ ${totalExpenses.toFixed(2)}`;
-            el('balance').textContent = `S/ ${balance.toFixed(2)}`;
+            const fmt = (n) => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            el('total-expenses').textContent = `S/ ${fmt(totalExpenses)}`;
+            el('balance').textContent = `S/ ${fmt(balance)}`;
             el('balance').className = balance >= 0 ? 'positive' : 'negative';
         }
 
