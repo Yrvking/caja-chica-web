@@ -2042,6 +2042,7 @@
                     const isRetentionDoc = rootTag === 'Retention';
 
                     // ── ID principal del comprobante (primer ID del documento)
+                    const allIds = getByTag('ID');
                     const idNode = allIds.length > 0 ? allIds[0].textContent.trim() : '';
 
                     if (!idNode) {
