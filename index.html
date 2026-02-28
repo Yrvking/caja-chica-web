@@ -2112,13 +2112,18 @@
                         new RegExp(`(?:OP(?:ERACI[O\u00d3]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
                     );
 
-                    // Fallback: calcular desde total
-                    const isRxH = type === 'RXH';
-                    if (isRxH) { subtotal = total; igv = 0; }
-                    else {
+                    // ── Reglas de IGV por tipo de documento ─────────────────────
+                    if (type === 'RXH' || type === 'MOVILIDAD') {
+                        // Sin IGV: el total es el monto bruto
+                        igv = 0;
+                        subtotal = total;
+                    } else {
+                        // FACTURA / BOLETA / NOTA DE CREDITO → IGV 18% siempre
+                        if (subtotal && !igv) igv = parseFloat((subtotal * 0.18).toFixed(2));
+                        if (igv && !subtotal) subtotal = parseFloat((total - igv).toFixed(2));
                         if (!igv && total) igv = parseFloat((total / 1.18 * 0.18).toFixed(2));
-                        if (!subtotal && total) subtotal = parseFloat((total - igv).toFixed(2));
-                        if (!total && subtotal && igv) total = parseFloat((subtotal + igv).toFixed(2));
+                        if (!subtotal && igv) subtotal = parseFloat((total - igv).toFixed(2));
+                        if (!total && subtotal) { igv = parseFloat((subtotal * 0.18).toFixed(2)); total = parseFloat((subtotal + igv).toFixed(2)); }
                     }
 
                     // ── DESCRIPCIÓN: extraer y humanizar items del detalle ────────
