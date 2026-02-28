@@ -2154,6 +2154,10 @@
                         };
                         const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
                         batch.set(newExpenseRef, expenseData);
+
+                        // Añadir localmente para prevenir duplicados en lote paralelo
+                        expenses.push(expenseData);
+
                         processedCount++;
                     } else {
                         console.warn(`${file.name}: total=0, se omite.`);
@@ -2483,6 +2487,10 @@
 
                         const newExpenseRef = doc(collection(db, 'cajasChicasActivas', currentUserData.uid, 'expenses'));
                         batch.set(newExpenseRef, expenseData);
+
+                        // Añadir localmente para prevenir duplicados en lote paralelo
+                        expenses.push(expenseData);
+
                         processedCount++;
                         extractionLogs.push({
                             file: file.name, status: 'ok',
