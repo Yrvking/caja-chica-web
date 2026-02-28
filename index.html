@@ -930,6 +930,9 @@
                             <input type="file" id="pdf-file-input" style="display: none;" accept=".pdf" multiple>
                             <button id="show-log-btn" class="btn ghost" style="font-size:11px;"
                                 title="Ver log de extracciones">📋 Logs</button>
+                            <button id="delete-all-btn" class="btn danger ghost"
+                                style="font-size:11px; margin-left: auto;"
+                                title="Eliminar todos los gastos de esta caja chica">🗑️ Eliminar Todos</button>
                         </div>
                         <details id="extraction-log-panel" style="display:none;">
                             <summary>📋 Log de Extracciones — <span id="log-count">0 archivos</span></summary>
@@ -1671,6 +1674,31 @@
                 sortDir = field === 'total' || field === 'subtotal' || field === 'igv' ? 'desc' : 'asc';
             }
             renderExpensesTable();
+        });
+
+        // ── Botón Eliminar Todos los Gastos ──────────────────────────
+        el('delete-all-btn').addEventListener('click', async () => {
+            if (!activePettyCash) return;
+            if (expenses.length === 0) {
+                alert('No hay gastos para eliminar.');
+                return;
+            }
+            if (!confirm(`¿Está seguro de ELIMINAR TODOS los ${expenses.length} gastos de esta caja chica de forma irreversible?`)) return;
+
+            toggleLoading(true);
+            try {
+                const batch = writeBatch(db);
+                expenses.forEach(exp => {
+                    const docRef = doc(db, 'cajasChicasActivas', currentUserData.uid, 'expenses', exp.id);
+                    batch.delete(docRef);
+                    // Si hay archivo adjuunto, tal vez borrar el de storage sería ideal, pero dejaremos eso para cleanup tasks (complejidad).
+                });
+                await batch.commit();
+            } catch (error) {
+                console.error('Error al eliminar todos los gastos:', error);
+                alert('Ocurrió un error al eliminar los gastos.');
+            }
+            toggleLoading(false);
         });
 
         // ── Botón Logs ───────────────────────────────────────────────
