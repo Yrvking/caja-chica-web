@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Caja Chica v2</title>
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <style>
@@ -956,6 +956,7 @@
                                         <th data-sort="name">Razón Social<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="pc">PC<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="description">Descripción<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="observacion">Observación<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="subtotal">Subtotal<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="igv">IGV<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="total">Total<i class="sort-arrow">⇅</i></th>
@@ -1014,6 +1015,7 @@
                                     <th>Gastado</th>
                                     <th>Saldo</th>
                                     <th>Estado</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="history-table-body"></tbody>
@@ -1423,6 +1425,7 @@
                 <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social"></td>
                 <td title="${esc(expense.pc)}"><select data-field="pc" style="font-size:10px;"><option value="">PC...</option>${pcOptions}</select></td>
                 <td title="${esc(expense.description)}"><input type="text" data-field="description" value="${esc(expense.description)}" placeholder="Descripción"></td>
+                <td title="${esc(expense.observacion)}"><input type="text" data-field="observacion" value="${esc(expense.observacion)}" placeholder="Opcional..."></td>
                 <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}" style="text-align:right;"></td>
                 <td><input type="number" data-field="igv"      value="${(expense.igv || 0).toFixed(2)}"      style="text-align:right; color:var(--text-muted);" disabled></td>
                 <td><input type="number" data-field="total"    value="${(expense.total || 0).toFixed(2)}"    style="text-align:right; font-weight:600;"></td>
@@ -1639,6 +1642,9 @@
                     <td>S/ ${total.toFixed(2)}</td>
                     <td style="color:${saldo >= 0 ? 'var(--success-text)' : 'var(--danger-text)'}">S/ ${saldo.toFixed(2)}</td>
                     <td><span style="font-size:10px; padding:4px 8px; border-radius:12px; background:var(--danger-bg); color:var(--danger-text)">${box.status}</span></td>
+                    <td>
+                        <button class="btn primary btn-sm icon-btn" data-action="export-excel" data-id="${box.id}" title="Exportar a Excel LITORAL" style="padding:3px 6px; font-size:11px;">📊 Excel</button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -2734,6 +2740,147 @@
             toggleLoading(false);
             event.target.value = '';
         }
+
+        // --- FUNCIÓN EXPORTACIÓN A EXCELJS (Formato Litoral) ---
+        async function exportCajaToExcel(boxId) {
+            const box = historyBoxes.find(b => b.id === boxId);
+            if (!box) return;
+            toggleLoading(true);
+
+            try {
+                // Obtener gastos de Firestore con 'getDocs' desde cajasChicasHistorial/{boxId}/expenses
+                // Utilizando getDocs dinámicamente o con importación global
+                const { getDocs } = await import("https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js");
+                const q = query(collection(db, "cajasChicasHistorial", boxId, "expenses"), orderBy("date", "asc"));
+                const querySnapshot = await getDocs(q);
+                let boxExpenses = [];
+                querySnapshot.forEach(docSnap => { boxExpenses.push({ id: docSnap.id, ...docSnap.data() }); });
+
+                const wb = new ExcelJS.Workbook();
+                const ws = wb.addWorksheet('Caja Chica');
+
+                // Formato Litoral: Establecer anchos de columna (A-K)
+                ws.columns = [
+                    { key: 'A', width: 4 },
+                    { key: 'B', width: 5 },
+                    { key: 'C', width: 12 },
+                    { key: 'D', width: 15 },
+                    { key: 'E', width: 40 },
+                    { key: 'F', width: 45 },
+                    { key: 'G', width: 12 },
+                    { key: 'H', width: 15 },
+                    { key: 'I', width: 10 },
+                    { key: 'J', width: 15 },
+                    { key: 'K', width: 25 },
+                ];
+
+                // Cabecera General
+                ws.getCell('C2').value = (box.empresaId && empresas.find(e => e.id === box.empresaId)?.razon || "EMPRESA LOCAL").toUpperCase();
+                ws.getCell('C2').font = { bold: true };
+
+                ws.getCell('C3').value = `RUC: ${box.empresaId && empresas.find(e => e.id === box.empresaId)?.ruc || ""}`;
+                ws.getCell('I3').value = "MONTO ENTREGADO  :";
+                ws.getCell('I3').alignment = { horizontal: 'right' };
+                ws.getCell('J3').value = box.initialAmount || 0;
+                ws.getCell('J3').numFmt = '#,##0.00';
+
+                // Fecha de exportación
+                const d = new Date();
+                ws.getCell('C4').value = `FECHA : ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+
+                ws.getCell('G4').value = `CAJA ${box.cajaNumero ? box.cajaNumero.replace('CCH-', '') : ''}`;
+                ws.getCell('G4').font = { bold: true };
+                ws.getCell('G4').alignment = { horizontal: 'center' };
+
+                ws.getCell('I4').value = "SALDO ANTERIOR: ";
+                ws.getCell('I4').alignment = { horizontal: 'right' };
+                ws.getCell('J4').value = 0; // Se asume 0 para este bloque
+                ws.getCell('J4').numFmt = '#,##0.00';
+
+                ws.getCell('I5').value = "TOTAL:";
+                ws.getCell('I5').font = { bold: true };
+                ws.getCell('I5').alignment = { horizontal: 'right' };
+                ws.getCell('J5').value = box.initialAmount || 0;
+                ws.getCell('J5').numFmt = '#,##0.00';
+                ws.getCell('J5').font = { bold: true };
+
+                ws.getCell('B6').value = `CAJA N° ${box.cajaNumero || ''}`;
+                ws.getCell('B8').value = `OBRA : ${box.obraNombre?.toUpperCase() || ''}`;
+                ws.getCell('B9').value = "NOMBRE Y APELLIDO : ";
+                ws.getCell('B10').value = box.ownerName?.toUpperCase() || "";
+
+                // Estilos para headers de tabla
+                const tableHeaders = ["N°", "FECHA", "RUC\nDNI", "PROVEEDOR", "DESCRIPCION DE GASTO", "PARTIDA \nCONTABLE", "N° \nDOCUMENTO", "FACTURA \n BOLETA \n OTROS", "MONTO S/. \n(INC. IGV)", "OBSERVACIÓN"];
+                const startRow = 12;
+                tableHeaders.forEach((th, idx) => {
+                    const cell = ws.getCell(startRow, idx + 2); // De B (2) a K (11)
+                    cell.value = th;
+                    cell.font = { bold: true };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                    cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+                });
+                ws.getRow(startRow).height = 30;
+
+                // Insertar Data
+                let currentRow = startRow + 1;
+
+                boxExpenses.forEach((exp, i) => {
+                    const parsedDate = exp.date?.seconds ? new Date(exp.date.seconds * 1000) : new Date();
+                    const dateStr = `${parsedDate.getDate().toString().padStart(2, '0')}/${(parsedDate.getMonth() + 1).toString().padStart(2, '0')}/${parsedDate.getFullYear()}`;
+
+                    const values = [
+                        i + 1,
+                        dateStr,
+                        exp.ruc,
+                        exp.name,
+                        exp.description,
+                        exp.pc,
+                        exp.seriesNumber,
+                        exp.type,
+                        exp.total || 0,
+                        exp.observacion || ''
+                    ];
+
+                    values.forEach((val, idx) => {
+                        const cell = ws.getCell(currentRow, idx + 2);
+                        cell.value = val;
+                        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+                        cell.alignment = { vertical: 'middle', wrapText: true };
+                        if (idx === 8) cell.numFmt = '#,##0.00'; // Total format
+                        // Centrar N°, Fecha, RUC, PC, TipoDoc
+                        if (idx === 0 || idx === 1 || idx === 2 || idx === 5 || idx === 7) {
+                            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+                        }
+                    });
+                    ws.getRow(currentRow).height = 20;
+                    currentRow++;
+                });
+
+                // Tiempos de descarga
+                const buffer = await wb.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `RENDICION ${box.cajaNumero || 'S_N'} - CAJA CHICA - ${box.obraNombre?.toUpperCase() || 'GENERAL'}.xlsx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error("Error al exportar:", error);
+                alert("Ocurrió un error al exportar la caja chica.");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        el('history-table-body').addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-action="export-excel"]');
+            if (btn) {
+                await exportCajaToExcel(btn.dataset.id);
+            }
+        });
+
         // ── Modal Crear Usuario ─────────────────────────────────────────────────
         el('add-usr-btn')?.addEventListener('click', () => { el('user-modal-overlay').style.display = 'flex'; });
         el('btn-cancel-user')?.addEventListener('click', () => { el('user-modal-overlay').style.display = 'none'; });
