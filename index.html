@@ -2088,7 +2088,9 @@
                         if (isNaN(date.getTime())) date = new Date();
                     }
 
-                    // ── MONTOS con etiquetas SUNAT ──────────────────────────────────
+                    // ── MONTOS — acepta S/ (soles) y $ (dólares) ────────────────
+                    // Símbolo de moneda: S/, S/., $ o USD
+                    const MON = '(?:S\\/\\.?|\\$|USD)\\s*';
                     const getAmount = (...patterns) => {
                         for (const pat of patterns) {
                             const m = fullText.match(pat);
@@ -2098,16 +2100,16 @@
                     };
 
                     let total = getAmount(
-                        /(?:IMPORTE\s+TOTAL|TOTAL\s+A\s+PAGAR|TOTAL\s+VENTA)[\s\S]{0,30}?S\/\.?\s*([\d,]+\.\d{2})/i,
-                        /TOTAL[:\s]+S\/\.?\s*([\d,]+\.\d{2})/i,
-                        /S\/\.?\s*([\d]{1,6}\.\d{2})\s*(?:$|\n)/im
+                        new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|TOTAL\\s+VENTA)[\\s\\S]{0,40}${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                        new RegExp(`TOTAL[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                        new RegExp(`${MON}([\\d]{1,6}\\.\\d{2})\\s*(?:$|\\n)`, 'im')
                     );
                     let igv = getAmount(
-                        /I\.?G\.?V\.?[:\s(]*(?:18\s*%)?[)\s]*S\/\.?\s*([\d,]+\.\d{2})/i,
+                        new RegExp(`I\\.?G\\.?V\\.?[:\\s(]*(?:18\\s*%)?[)\\s]*${MON}([\\d,]+\\.\\d{2})`, 'i'),
                         /IGV[:\s]+([\d,]+\.\d{2})/i
                     );
                     let subtotal = getAmount(
-                        /(?:OP(?:ERACI[OÓ]N)?\.?\s*GRAV|BASE\s+IMPONIBLE|SUB\.?\s*TOTAL|VALOR\s+VENTA)[:\s]+S\/\.?\s*([\d,]+\.\d{2})/i
+                        new RegExp(`(?:OP(?:ERACI[O\u00d3]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
                     );
 
                     // Fallback: calcular desde total
