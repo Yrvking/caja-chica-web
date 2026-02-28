@@ -2041,13 +2041,13 @@
                     const isRetentionDoc = rootTag === 'Retention';
 
                     // ── ID principal del comprobante (primer ID del documento)
-                    const allIds = getByTag('ID');
                     const idNode = allIds.length > 0 ? allIds[0].textContent.trim() : '';
 
                     if (!idNode) {
                         console.warn(`${file.name}: sin ID principal, no es XML SUNAT válido.`);
                         continue;
                     }
+                    const seriesNumber = idNode;
 
                     // ── Fechas
                     const issueDate = getFirstText('IssueDate');
@@ -2074,6 +2074,13 @@
                             ruc = getFirstText('ID', agentNodes[0]);
                             name = getFirstText('RegistrationName', agentNodes[0]);
                         }
+                    }
+
+                    // ── Validar duplicados ──────────────────────────────────────
+                    if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
+                        console.warn(`Duplicado omitido: ${file.name} (RUC: ${ruc}, Serie: ${seriesNumber})`);
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
+                        continue;
                     }
 
                     // ── Montos
@@ -2247,12 +2254,18 @@
                     }
 
                     // ── SERIE Y NÚMERO ──────────────────────────────────────────────
-                    // Formato SUNAT: [F|B|E|R|C|N][A-Z0-9]{3}-[0-9]{1,8}
-                    // Ejemplos: F001-00001, FI25-019126, B001-00001, E001-00001
-                    const seriesMatch = fullText.match(/\b([FBECR][A-Z0-9]{3}[-]\d{1,8})\b/i)
-                        || fullText.match(/\b([FBECR][A-Z0-9]{2}[-]\d{1,8})\b/i)
-                        || fullText.match(/\b([FBECR][-][A-Z0-9]{3}[-]\d{1,8})\b/i);
-                    const seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
+                    // Formato SUNAT: [F|B|E|R|C|N][A-Z0-9]{3}-[0-9]{1,8} y físicos 001-12345
+                    // Ejemplos: F001-00001, FI25-019126, B001-00001, E001-00001, 1001-00001
+                    // A veces EBIZ se cuela (ej. EBIZ-0123), así que ignoramos
+
+                    // Limpiar el texto previamente de EBIZ para que no ensucie regex
+                    const cleanTextForSeries = fullText.replace(/EBIZ[-_][A-Z0-9]+/gi, ' ');
+
+                    const seriesMatch = cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{3}[-]\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{2}[-]\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b([FBECR][-][A-Z0-9]{3}[-]\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b(\d{3,4}[-]\d{1,8})\b/i); // Series físicas 001-123 o 1001-1234
+                    let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
 
                     // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
                     const fText = fullText.toUpperCase();
@@ -2296,6 +2309,13 @@
                     let subtotal = getAmount(
                         new RegExp(`(?:OP(?:ERACI[O\u00d3]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
                     );
+
+                    // ── Validar duplicados ──────────────────────────────────────
+                    if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
+                        console.warn(`Duplicado PDF omitido: ${file.name} (RUC: ${ruc}, Serie: ${seriesNumber})`);
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
+                        continue;
+                    }
 
                     // ── Reglas de IGV por tipo de documento ─────────────────────
                     if (type === 'RXH' || type === 'MOVILIDAD') {
