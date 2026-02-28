@@ -2014,6 +2014,7 @@
             if (files.length === 0 || !activePettyCash) return;
             toggleLoading(true);
             let processedCount = 0;
+            let duplicateCount = 0;
             const batch = writeBatch(db);
 
             for (const file of files) {
@@ -2080,6 +2081,7 @@
                     if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
                         console.warn(`Duplicado omitido: ${file.name} (RUC: ${ruc}, Serie: ${seriesNumber})`);
                         extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
+                        duplicateCount++;
                         continue;
                     }
 
@@ -2155,8 +2157,16 @@
 
             try {
                 await batch.commit();
-                if (processedCount > 0) alert(`${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`);
-                else alert("No se pudieron procesar los archivos XML. Verifique el formato.");
+                updateExtractionLog();
+                if (processedCount > 0) {
+                    let msg = `${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`;
+                    if (duplicateCount > 0) msg += `\nSe omitieron ${duplicateCount} comprobantes por ser duplicados.`;
+                    alert(msg);
+                } else if (duplicateCount > 0) {
+                    alert(`Se omitieron los ${duplicateCount} comprobantes porque ya están registrados en esta caja (Duplicados).`);
+                } else {
+                    alert("No se pudieron procesar los archivos XML. Verifique el formato.");
+                }
             } catch (error) {
                 console.error("Error al guardar gastos de XML:", error);
                 alert("Ocurrió un error al guardar los gastos en la base de datos.");
@@ -2175,6 +2185,7 @@
             if (files.length === 0 || !activePettyCash) return;
             toggleLoading(true);
             let processedCount = 0;
+            let duplicateCount = 0;
             const batch = writeBatch(db);
 
             for (const file of files) {
@@ -2314,6 +2325,7 @@
                     if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
                         console.warn(`Duplicado PDF omitido: ${file.name} (RUC: ${ruc}, Serie: ${seriesNumber})`);
                         extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
+                        duplicateCount++;
                         continue;
                     }
 
@@ -2484,8 +2496,15 @@
             try {
                 await batch.commit();
                 updateExtractionLog();
-                if (processedCount > 0) alert(`${processedCount} de ${files.length} PDFs agregados. Verifique razón social y descripción.`);
-                else alert('No se pudieron extraer montos válidos de los PDFs. Revise el log (📋 Logs).');
+                if (processedCount > 0) {
+                    let msg = `${processedCount} de ${files.length} PDFs agregados. Verifique razón social y descripción.`;
+                    if (duplicateCount > 0) msg += `\nSe omitieron ${duplicateCount} por ser duplicados.`;
+                    alert(msg);
+                } else if (duplicateCount > 0) {
+                    alert(`Se omitieron los ${duplicateCount} PDF porque ya están registrados en esta caja (Duplicados).`);
+                } else {
+                    alert('No se pudieron extraer montos válidos de los PDFs. Revise el log (📋 Logs).');
+                }
             } catch (error) {
                 console.error('Error al guardar gastos de PDF:', error);
                 alert('Error al guardar los gastos: ' + error.message);
