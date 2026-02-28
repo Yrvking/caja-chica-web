@@ -2036,28 +2036,47 @@
                     const ruc = allRucs[0] || '';
 
                     // ── RAZÓN SOCIAL del EMISOR ─────────────────────────────────────
-                    // Buscar la línea que está junto o cerca del RUC del emisor
+                    // SUNAT: el emisor (proveedor) aparece en el HEADER del PDF (primeras líneas)
+                    // El receptor (nuestro cliente) aparece en la MITAD marcado con etiquetas
                     let razonSocial = '';
                     if (ruc) {
-                        // Buscar en líneas adyacentes al RUC
-                        const rucLineIdx = lines.findIndex(l => l.includes(ruc));
-                        const searchArea = lines.slice(Math.max(0, rucLineIdx - 5), rucLineIdx + 3).join(' ');
-                        // Patrón: empresa con sufijo legal SAC, SRL, SA, EIRL, CIA, SAS...
-                        const rsMatch = searchArea.match(/([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s&\.,'\-]{3,60}(?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|CIA\.?|S\.?A\.S?\.?|LTDA?\.?|INC?\.?|GR?UP[OA]?\.?))/i);
-                        if (rsMatch) razonSocial = rsMatch[1].trim();
+                        // Labels que indican datos del RECEPTOR/CLIENTE — ignorar esas líneas
+                        const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|datos\s+del|a:|para:)/i;
+                        const legalSuffix = /(?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|CIA\.?|S\.?A\.S?\.?|LTDA?\.?|S\.?A\b)/;
+                        const rsRE = new RegExp('([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ \\s&\\.,\'\\-]{2,60}' + legalSuffix.source + ')', 'i');
 
-                        // Fallback: línea justo antes del RUC en mayúsculas
-                        if (!razonSocial && rucLineIdx > 0) {
-                            const prevLine = lines[rucLineIdx - 1];
-                            if (prevLine && prevLine === prevLine.toUpperCase() && prevLine.length > 4) {
-                                razonSocial = prevLine;
+                        // Estrategia 1: buscar en primeras 20 líneas (zona del emisor)
+                        const topLines = lines.slice(0, Math.min(22, lines.length))
+                            .filter(l => !clienteRE.test(l) && !l.includes(ruc));
+                        const topText = topLines.join(' ');
+                        const m1 = topText.match(rsRE);
+                        if (m1) razonSocial = m1[1].trim();
+
+                        // Estrategia 2: buscar SOLO ANTES del RUC (no después = receptor)
+                        if (!razonSocial) {
+                            const rucLineIdx = lines.findIndex(l => l.includes(ruc));
+                            const beforeRuc = lines.slice(Math.max(0, rucLineIdx - 6), rucLineIdx + 1)
+                                .filter(l => !clienteRE.test(l))
+                                .join(' ');
+                            const m2 = beforeRuc.match(rsRE);
+                            if (m2) razonSocial = m2[1].trim();
+
+                            // Estrategia 3: primera línea en mayúsculas sin el RUC ni labels de tipo doc
+                            if (!razonSocial) {
+                                const docLabels = /^(?:RUC|FACTURA|BOLETA|RECIBO|BIEN|FECHA|EMITIDO|NOTA|LIQUIDACION)/i;
+                                const candidate = lines.slice(0, 18).find(l =>
+                                    !l.includes(ruc) && !clienteRE.test(l) && !docLabels.test(l)
+                                    && l.trim().length > 4 && l.trim() === l.trim().toUpperCase()
+                                    && /[A-Z]{3,}/.test(l)
+                                );
+                                if (candidate) razonSocial = candidate.trim();
                             }
                         }
 
-                        // Fallback 2: buscar patrón "R.U.C.: 20XXXXXXXXX EMPRESA SAC"
+                        // Estrategia 4: patrón "R.U.C. XXXXXXXXX → siguiente línea = nombre"
                         if (!razonSocial) {
-                            const inlineMatch = fullText.match(/R\.?U\.?C\.?[:\s]+(?:20|10)\d{9}[\s\n]+([^\n]{4,60})/i);
-                            if (inlineMatch) razonSocial = inlineMatch[1].trim();
+                            const m4 = fullText.match(/R\.?U\.?C\.?\s*[N°\s]*(?:20|10)\d{9}\s+([^\n]{4,60})/i);
+                            if (m4 && !clienteRE.test(m4[1])) razonSocial = m4[1].trim();
                         }
                     }
 
