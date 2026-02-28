@@ -1107,8 +1107,14 @@
                     </div>
                 </div>
                 <div class="card">
-                    <div class="card-h"><b>Usuarios</b><span class="toggle-collapse"
-                            data-target="usr-content">[Contraer]</span></div>
+                    <div class="card-h">
+                        <b>Usuarios</b>
+                        <div>
+                            <button id="add-usr-btn" class="btn primary btn-sm" style="margin-right:10px;">➕ Crear
+                                Usuario</button>
+                            <span class="toggle-collapse" data-target="usr-content">[Contraer]</span>
+                        </div>
+                    </div>
                     <div id="usr-content" class="collapsible-content card-b">
                         <div style="overflow-x:auto;">
                             <table class="data-table">
@@ -1118,6 +1124,7 @@
                                         <th>Email</th>
                                         <th>Empresa</th>
                                         <th>Rol</th>
+                                        <th>Proyectos Asignados</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -1142,9 +1149,40 @@
         </div>
     </div>
 
+    <!-- User Modal Overlay -->
+    <div id="user-modal-overlay" class="login-overlay" style="display:none; z-index:2000;">
+        <div class="login-card" style="max-width: 450px;">
+            <h3>Crear Nuevo Usuario</h3>
+            <div class="form-group"><label>Nombres</label><input type="text" id="new-user-names"></div>
+            <div class="form-group" style="margin-top:8px"><label>Email</label><input type="email" id="new-user-email">
+            </div>
+            <div class="form-group" style="margin-top:8px"><label>Contraseña</label><input type="password"
+                    id="new-user-pass"></div>
+            <div class="form-group" style="margin-top:8px">
+                <label>Rol</label>
+                <select id="new-user-role">
+                    <option value="USUARIO">Usuario</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="RESIDENTE">Residente (Firma)</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-top:8px">
+                <label>Activo en Caja Chica</label>
+                <select id="new-user-cc-active">
+                    <option value="true">Sí (Activo)</option>
+                    <option value="false">No (Bloqueado)</option>
+                </select>
+            </div>
+            <div class="actions-container" style="justify-content: flex-end; margin-top: 16px;">
+                <button id="btn-cancel-user" class="btn ghost" style="margin-right:8px;">Cancelar</button>
+                <button id="btn-create-user" class="btn primary">Crear Usuario</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
@@ -1161,6 +1199,10 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         const storage = getStorage(app);
+
+        // ── Secondary App para creación de usuarios sin desloguear ──
+        const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+        const secondaryAuth = getAuth(secondaryApp);
 
         let currentUserData, empresas = [], areas = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
         let listeners = [];
@@ -1389,16 +1431,34 @@
                 row.dataset.id = user.id;
                 const empresaOptions = empresas.map(e => `<option value="${e.id}" ${e.id === user.empresaId ? 'selected' : ''}>${e.nombre || e.razon}</option>`).join('');
 
+                // Generar checkboxes de proyectos
+                const userProyectos = user.proyectos || [];
+                const proyectosHtml = areas.map(a => `
+                    <label style="display:block; font-size:11px; margin-bottom:2px;">
+                        <input type="checkbox" class="user-proyectos-cb" value="${a.id}" ${userProyectos.includes(a.id) ? 'checked' : ''} disabled> ${a.nombre || a.id}
+                    </label>
+                `).join('');
+
                 row.innerHTML = `
-                <td><input class="user-nombres read-only-input" value="${user.nombres || '(Sin Nombre)'}" readonly></td>
+                <td>
+                    <input class="user-nombres read-only-input" value="${user.nombres || '(Sin Nombre)'}" readonly>
+                    <div style="margin-top:4px; font-size:11px;">
+                        <label><input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled> Permitir acceso a Caja Chica</label>
+                    </div>
+                </td>
                 <td><span class="user-email-display">${user.email || '(Sin Email)'}</span></td>
                 <td><select class="user-empresa" disabled><option value="">Ninguna</option>${empresaOptions}</select></td>
-                <td><select class="user-rol" disabled><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option></select></td>
+                <td><select class="user-rol" disabled><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
+                <td>
+                    <div style="max-height:80px; overflow-y:auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#f9f9f9;">
+                        ${proyectosHtml}
+                    </div>
+                </td>
                 <td class="actions-cell">
                     <div class="edit-mode-btns" style="display: flex; gap: 5px;">
                         <button class="btn primary btn-sm" data-action="edit-user">Editar</button>
                     </div>
-                    <div class="save-mode-btns" style="display: none; gap: 5px;">
+                    <div class="save-mode-btns" style="display: none; gap: 5px; flex-direction:column;">
                         <button class="btn primary btn-sm" data-action="save-user">Guardar</button>
                         <button class="btn ghost btn-sm" data-action="cancel-user">Cancelar</button>
                     </div>
@@ -1615,7 +1675,7 @@
             if (!row) return;
 
             if (action === 'edit-user') {
-                row.querySelectorAll('select, .user-nombres').forEach(input => input.disabled = false);
+                row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = false);
                 row.querySelector('.user-nombres').classList.remove('read-only-input');
                 row.querySelector('.edit-mode-btns').style.display = 'none';
                 row.querySelector('.save-mode-btns').style.display = 'flex';
@@ -1630,10 +1690,20 @@
             try {
                 if (action === 'save-user') {
                     const userId = row.dataset.id;
-                    const newName = row.querySelector('.user-nombres').value;
+                    const newName = row.querySelector('.user-nombres').value.trim();
                     const newRole = row.querySelector('.user-rol').value;
                     const newEmpresaId = row.querySelector('.user-empresa').value;
-                    await updateDoc(doc(db, "users", userId), { nombres: newName, rol: newRole, empresaId: newEmpresaId });
+
+                    const selectedProjects = Array.from(row.querySelectorAll('.user-proyectos-cb:checked')).map(cb => cb.value);
+                    const isActivo = row.querySelector('.user-cc-activo').checked;
+
+                    await updateDoc(doc(db, "users", userId), {
+                        nombres: newName,
+                        rol: newRole,
+                        empresaId: newEmpresaId,
+                        proyectos: selectedProjects,
+                        cajaChicaActivo: isActivo
+                    });
                     alert('Perfil de usuario actualizado.');
                     renderUsersTable();
                 } else if (action === 'save-pc') {
@@ -2589,6 +2659,48 @@
             toggleLoading(false);
             event.target.value = '';
         }
+        // ── Modal Crear Usuario ─────────────────────────────────────────────────
+        el('add-usr-btn')?.addEventListener('click', () => { el('user-modal-overlay').style.display = 'flex'; });
+        el('btn-cancel-user')?.addEventListener('click', () => { el('user-modal-overlay').style.display = 'none'; });
+
+        el('btn-create-user')?.addEventListener('click', async () => {
+            const name = el('new-user-names').value.trim();
+            const email = el('new-user-email').value.trim();
+            const pass = el('new-user-pass').value.trim();
+            const rol = el('new-user-role').value;
+            const activo = el('new-user-cc-active').value === 'true';
+
+            if (!name || !email || !pass) { alert("Debe completar nombres, email y contraseña."); return; }
+            if (pass.length < 6) { alert("La contraseña debe tener al menos 6 caracteres."); return; }
+
+            toggleLoading(true);
+            try {
+                // Secondary auth sign up (no desloguea al admin)
+                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+                const newUid = userCredential.user.uid;
+
+                // Firestore doc entry
+                await setDoc(doc(db, "users", newUid), {
+                    nombres: name,
+                    email: email,
+                    rol: rol,
+                    cajaChicaActivo: activo,
+                    proyectos: [],
+                    createdAt: serverTimestamp()
+                });
+
+                alert("Usuario creado correctamente. Ahora busque el usuario en la tabla y dele Editar para asignar sus Proyectos.");
+                el('user-modal-overlay').style.display = 'none';
+                el('new-user-names').value = '';
+                el('new-user-email').value = '';
+                el('new-user-pass').value = '';
+            } catch (e) {
+                console.error("Error creando usaurio:", e);
+                alert("Error al crear la cuenta: " + e.message);
+            }
+            toggleLoading(false);
+        });
+
     </script>
 </body>
 
