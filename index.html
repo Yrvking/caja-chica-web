@@ -551,9 +551,72 @@
             letter-spacing: 0.04em;
             overflow: hidden;
             text-overflow: ellipsis;
-            /* Resizable columns */
             resize: horizontal;
             position: relative;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .data-table th:hover {
+            background: linear-gradient(180deg, #1a3a5c 0%, #224070 100%);
+        }
+
+        .data-table th .sort-arrow {
+            margin-left: 4px;
+            opacity: 0.5;
+            font-style: normal;
+        }
+
+        .data-table th.sort-asc .sort-arrow,
+        .data-table th.sort-desc .sort-arrow {
+            opacity: 1;
+            color: #60a5fa;
+        }
+
+        /* Panel de logs */
+        #extraction-log-panel {
+            background: #0d1b2e;
+            border: 1px solid #1e3a5f;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 10.5px;
+        }
+
+        #extraction-log-panel summary {
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #93c5fd;
+            font-weight: 600;
+        }
+
+        .log-entry {
+            display: flex;
+            gap: 8px;
+            padding: 4px 12px;
+            border-top: 1px solid #1e3a5f;
+            align-items: flex-start;
+        }
+
+        .log-entry.ok {
+            color: #6ee7b7;
+        }
+
+        .log-entry.warn {
+            color: #fde68a;
+        }
+
+        .log-entry.err {
+            color: #fca5a5;
+        }
+
+        .log-file {
+            font-weight: 600;
+            min-width: 160px;
+        }
+
+        .log-detail {
+            color: #94a3b8;
+            font-size: 10px;
         }
 
         .data-table th:first-child {
@@ -865,21 +928,27 @@
                                 style="background: #fef2f2; border-color: #fca5a5; color: #b91c1c;">📄 Extraer de
                                 PDF</button>
                             <input type="file" id="pdf-file-input" style="display: none;" accept=".pdf" multiple>
+                            <button id="show-log-btn" class="btn ghost" style="font-size:11px;"
+                                title="Ver log de extracciones">📋 Logs</button>
                         </div>
+                        <details id="extraction-log-panel" style="display:none;">
+                            <summary>📋 Log de Extracciones — <span id="log-count">0 archivos</span></summary>
+                            <div id="extraction-log-body"></div>
+                        </details>
                         <div style="overflow-x:auto;">
-                            <table class="data-table">
-                                <thead>
+                            <table class="data-table" id="expenses-table">
+                                <thead id="expenses-thead">
                                     <tr>
-                                        <th>Fecha</th>
-                                        <th>Tipo Doc.</th>
-                                        <th>Serie-N°</th>
-                                        <th>RUC</th>
-                                        <th>Razón Social</th>
-                                        <th>PC</th>
-                                        <th>Descripción</th>
-                                        <th>Subtotal</th>
-                                        <th>IGV</th>
-                                        <th>Total</th>
+                                        <th data-sort="date">Fecha<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="type">Tipo Doc.<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="seriesNumber">Serie-N°<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="ruc">RUC<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="name">Razón Social<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="pc">PC<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="description">Descripción<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="subtotal">Subtotal<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="igv">IGV<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="total">Total<i class="sort-arrow">⇅</i></th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -1092,6 +1161,8 @@
 
         let currentUserData, empresas = [], areas = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
         let listeners = [];
+        let sortField = 'createdAt', sortDir = 'desc';
+        let extractionLogs = [];
 
         const el = (id) => document.getElementById(id);
         const toggleLoading = (show) => el('loading-overlay').style.display = show ? 'flex' : 'none';
@@ -1191,14 +1262,55 @@
             }
         }
 
+        // ── Actualizar panel de logs de extracción ───────────────────
+        function updateExtractionLog() {
+            const panel = el('extraction-log-panel');
+            const body = el('extraction-log-body');
+            const count = el('log-count');
+            if (!panel || !body) return;
+            panel.style.display = extractionLogs.length ? '' : 'none';
+            count.textContent = `${extractionLogs.length} archivo${extractionLogs.length !== 1 ? 's' : ''}`;
+            body.innerHTML = extractionLogs.map(log => `
+                <div class="log-entry ${log.status}">
+                    <span class="log-file">${log.status === 'ok' ? '✅' : log.status === 'warn' ? '⚠️' : '❌'} ${log.file}</span>
+                    <span class="log-detail">${log.detail}</span>
+                </div>`).join('');
+            panel.open = true;
+        }
+
         function renderExpensesTable() {
             const tbody = el('expenses-table-body');
             tbody.innerHTML = '';
             let pcOptions = partidasContables.map(pc => `<option value="${pc.id}">${pc.id} - ${pc.descripcion || ''}</option>`).join('');
 
+            // ── Ordenar expenses según sortField/sortDir ───────────────
+            const sorted = [...expenses].sort((a, b) => {
+                let va = a[sortField], vb = b[sortField];
+                if (va && va.seconds) va = va.seconds;
+                if (vb && vb.seconds) vb = vb.seconds;
+                if (va === undefined || va === null) va = '';
+                if (vb === undefined || vb === null) vb = '';
+                const cmp = typeof va === 'number' && typeof vb === 'number'
+                    ? va - vb
+                    : String(va).localeCompare(String(vb), 'es', { numeric: true });
+                return sortDir === 'asc' ? cmp : -cmp;
+            });
+
+            // ── Actualizar estilos de th según orden activo ───────────
+            document.querySelectorAll('#expenses-thead th[data-sort]').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                const arrow = th.querySelector('.sort-arrow');
+                if (th.dataset.sort === sortField) {
+                    th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+                    if (arrow) arrow.textContent = sortDir === 'asc' ? '▲' : '▼';
+                } else {
+                    if (arrow) arrow.textContent = '⇅';
+                }
+            });
+
             const esc = v => String(v || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-            expenses.forEach(expense => {
+            sorted.forEach(expense => {
                 const row = document.createElement('tr');
                 row.dataset.id = expense.id;
                 const expenseDate = expense.date?.seconds ? new Date(expense.date.seconds * 1000).toISOString().split('T')[0]
@@ -1545,6 +1657,32 @@
                 alert("Ocurrió un error.");
             }
             toggleLoading(false);
+        });
+
+        // ── Click en headers para sorting ─────────────────────────────
+        document.getElementById('expenses-thead').addEventListener('click', e => {
+            const th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            const field = th.dataset.sort;
+            if (sortField === field) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDir = field === 'total' || field === 'subtotal' || field === 'igv' ? 'desc' : 'asc';
+            }
+            renderExpensesTable();
+        });
+
+        // ── Botón Logs ───────────────────────────────────────────────
+        el('show-log-btn').addEventListener('click', () => {
+            const panel = el('extraction-log-panel');
+            if (panel.style.display === 'none' || !extractionLogs.length) {
+                if (!extractionLogs.length) { alert('No hay logs de extracción todavía. Suba un PDF o XML primero.'); return; }
+                panel.style.display = '';
+                panel.open = true;
+            } else {
+                panel.style.display = 'none';
+            }
         });
 
         el('filter-obra')?.addEventListener('change', renderHistoryView);
@@ -2277,19 +2415,29 @@
                         const newExpenseRef = doc(collection(db, 'cajasChicasActivas', currentUserData.uid, 'expenses'));
                         batch.set(newExpenseRef, expenseData);
                         processedCount++;
+                        extractionLogs.push({
+                            file: file.name, status: 'ok',
+                            detail: `${type} | ${seriesNumber || '?'} | ${razonSocial || ruc || '?'} | Total: ${total.toFixed(2)} | IGV: ${igv.toFixed(2)}`
+                        });
                     } else {
                         console.warn(`${file.name}: sin monto válido, se omite.`);
+                        extractionLogs.push({
+                            file: file.name, status: 'warn',
+                            detail: `Sin monto válido. RUC=${ruc || '?'} Serie=${seriesNumber || '?'} Tipo=${type}. Revisa manualmente.`
+                        });
                     }
 
                 } catch (error) {
                     console.error(`Error procesando el PDF ${file.name}:`, error);
+                    extractionLogs.push({ file: file.name, status: 'err', detail: error.message });
                 }
             }
 
             try {
                 await batch.commit();
+                updateExtractionLog();
                 if (processedCount > 0) alert(`${processedCount} de ${files.length} PDFs agregados. Verifique razón social y descripción.`);
-                else alert('No se pudieron extraer montos válidos de los PDFs. Revise la consola (F12) para detalles.');
+                else alert('No se pudieron extraer montos válidos de los PDFs. Revise el log (📋 Logs).');
             } catch (error) {
                 console.error('Error al guardar gastos de PDF:', error);
                 alert('Error al guardar los gastos: ' + error.message);
