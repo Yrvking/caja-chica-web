@@ -1281,7 +1281,8 @@
                 alert("Por favor seleccione un proyecto activo en la parte superior.");
                 throw new Error("No hay proyecto activo seleccionado.");
             }
-            return `${currentUserData.uid}_${currentProjectId}`;
+            const safeId = currentProjectId.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            return `${currentUserData.uid}_${safeId || currentProjectId}`;
         };
 
         const el = (id) => document.getElementById(id);
@@ -1334,15 +1335,27 @@
                 }
             }));
 
-            listeners.push(onSnapshot(query(collection(db, "proyectos")), s => {
-                proyectosArr = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Escuchar coleccion areas de Planilla Web (roles y proyDef linkados aqui)
+            // Los proyectos disponibles se extraen de los arrays 'proyectos' de todos los usuarios
+            listeners.push(onSnapshot(collection(db, "areas"), s => {
+                proyectosArr = s.docs.map(d => ({ id: d.id, nombre: d.data().nombre || d.id, ...d.data() }));
                 renderObrasDropdowns();
                 if (isAdmin) renderObrasTable();
 
-                // Si no hay proyecto seleccionado, auto-seleccionar el primero
+                // Si no hay proyecto seleccionado, auto-seleccionar proyDef del usuario
                 if (!currentProjectId) {
                     const select = el('global-project-select');
                     if (select && select.options.length > 1) {
+                        // Intentar seleccionar proyDef primero
+                        const proyDef = currentUserData?.proyDef;
+                        if (proyDef) {
+                            const opt = Array.from(select.options).find(o => o.value === proyDef || o.text === proyDef);
+                            if (opt) {
+                                select.value = opt.value;
+                                select.dispatchEvent(new Event('change'));
+                                return;
+                            }
+                        }
                         select.selectedIndex = 1;
                         select.dispatchEvent(new Event('change'));
                     }
@@ -1393,7 +1406,9 @@
                 return;
             }
 
-            const cajaId = currentUserData.uid + '_' + projectId;
+            // Normalizar el nombre del proyecto a ID safe para Firestore
+            const safeProjectId = projectId.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            const cajaId = currentUserData.uid + '_' + (safeProjectId || projectId);
             const pettyCashRef = doc(db, "cajasChicasActivas", cajaId);
 
             activeProjectListener = onSnapshot(pettyCashRef, docSnap => {
@@ -1558,28 +1573,38 @@
                 row.dataset.id = user.id;
                 const empresaOptions = empresas.map(e => `<option value="${e.id}" ${e.id === user.empresaId ? 'selected' : ''}>${e.nombre || e.razon}</option>`).join('');
 
-                // Generar checkboxes de proyectos compacto (checkbox a la izquierda en una línea)
+                // Los proyectos son un array de strings (nombres) directamente en el doc user
                 const userProyectos = user.proyectos || [];
-                const proyectosHtml = proyectosArr.map(a => `
+
+                // Obtener todos los proyectos disponibles combinando proyectosArr y proyectos de todos los usuarios
+                const todosProyectos = [...new Set([
+                    ...proyectosArr.map(p => p.nombre || p.id),
+                    ...usuarios.flatMap(u => u.proyectos || [])
+                ])].filter(Boolean).sort();
+
+                const proyectosHtml = todosProyectos.map(nombre => `
                     <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
-                        <input type="checkbox" class="user-proyectos-cb" value="${a.id}" ${userProyectos.includes(a.id) ? 'checked' : ''} disabled>
-                        <span>${a.nombre || a.id}</span>
+                        <input type="checkbox" class="user-proyectos-cb" value="${nombre}" ${userProyectos.includes(nombre) ? 'checked' : ''} disabled>
+                        <span>${nombre}</span>
                     </label>
                 `).join('');
 
+                // Email: puede estar en user.email (desde Auth guardado al crear) o en user.emailTo[0]
+                const emailDisplay = user.email || (Array.isArray(user.emailTo) && user.emailTo.length > 0 ? user.emailTo[0] : '');
+
                 row.innerHTML = `
                 <td>
-                    <input class="user-nombres read-only-input" value="${user.nombres || ''}" placeholder="Nombre" readonly style="width:120px;">
+                    <input class="user-nombres read-only-input" value="${user.nombres || user.nombre || ''}" placeholder="Nombre" readonly style="width:120px;">
                 </td>
                 <td style="text-align:center;">
                     <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled style="transform: scale(1.2);">
                 </td>
-                <td><input class="user-email read-only-input" value="${user.email || ''}" placeholder="-" readonly style="width:160px; font-size:11px;"></td>
+                <td><input class="user-email read-only-input" value="${emailDisplay}" placeholder="-" readonly style="width:160px; font-size:11px;"></td>
                 <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
                 <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
                     <div style="max-height:80px; overflow-y:auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#f9f9f9; display:flex; flex-direction:column; min-width:140px;">
-                        ${proyectosHtml}
+                        ${proyectosHtml || '<span style="font-size:11px;color:#999;">Sin proyectos</span>'}
                     </div>
                 </td>
                 <td class="actions-cell">
@@ -1601,24 +1626,29 @@
             const filterObra = el('filter-obra');
             const globalSelect = el('global-project-select');
 
-            // Usar proyectos asignados al usuario; si no tiene, mostrar todas las obras
-            const proyectosAsignados = currentUserData?.proyectos || [];
-            let obrasFiltradas;
+            // Los proyectos del usuario son strings en el array 'proyectos' del doc user
+            const proyectosDelUsuario = currentUserData?.proyectos || [];
+            const proyDefUsuario = currentUserData?.proyDef || '';
 
-            if (proyectosAsignados.length > 0) {
-                // El usuario tiene proyectos asignados: filtrar las obras por ID o nombre
-                obrasFiltradas = proyectosArr.filter(a => proyectosAsignados.includes(a.id) || proyectosAsignados.includes(a.nombre));
+            // Si es admin, mostrar todos los proyectos que aparecen en cualquier usuario
+            const isAdmin = currentUserData?.rol === 'ADMIN';
+
+            let proyectosParaMostrar;
+            if (isAdmin) {
+                // Admin: todos los proyectos del ecosistema (union de arrays de todos users + areas)
+                const desdeAreas = proyectosArr.map(p => p.nombre || p.id);
+                proyectosParaMostrar = [...new Set([...desdeAreas, ...proyectosDelUsuario])].filter(Boolean).sort();
             } else {
-                // Sin asignación específica: mostrar todas
-                obrasFiltradas = proyectosArr;
+                proyectosParaMostrar = [...new Set(proyectosDelUsuario)].filter(Boolean);
             }
 
-            const optionsHtml = obrasFiltradas.map(a => `<option value="${a.id}">${a.nombre || a.id}</option>`).join('');
+            // Cada proyecto es un string nombre; usamos el nombre como value tambien
+            const optionsHtml = proyectosParaMostrar.map(nombre => `<option value="${nombre}">${nombre}</option>`).join('');
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
                 obraSelect.innerHTML = '<option value="">-- Seleccionar Obra --</option>' + optionsHtml;
-                obraSelect.value = currentVal;
+                obraSelect.value = currentVal || proyDefUsuario || '';
             }
             if (filterObra) {
                 const currentVal = filterObra.value;
@@ -1628,7 +1658,10 @@
             if (globalSelect) {
                 const currentVal = globalSelect.value;
                 globalSelect.innerHTML = '<option value="">-- Seleccione un Proyecto --</option>' + optionsHtml;
-                if (currentVal && obrasFiltradas.some(a => a.id === currentVal)) {
+                // Auto-seleccionar proyDef si no hay nada seleccionado
+                if (proyDefUsuario && !currentVal) {
+                    globalSelect.value = proyDefUsuario;
+                } else if (currentVal && proyectosParaMostrar.includes(currentVal)) {
                     globalSelect.value = currentVal;
                 }
             }
@@ -2123,12 +2156,15 @@
             if (nombre) {
                 toggleLoading(true);
                 try {
-                    await setDoc(doc(db, 'proyectos', codigo || String(Date.now())), { codigo, nombre, createdAt: serverTimestamp() });
+                    // Guardamos en 'areas' para consistencia con Planilla Web
+                    const docId = codigo || nombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    await setDoc(doc(db, 'areas', docId), { codigo, nombre, createdAt: serverTimestamp() }, { merge: true });
                     el('new-obra-codigo').value = '';
                     el('new-obra-nombre').value = '';
+                    alert(`Proyecto "${nombre}" guardado correctamente.`);
                 } catch (e) {
                     console.error(e);
-                    alert("Error guardando proyecto. Verifique las Reglas de Firestore.");
+                    alert("Error guardando proyecto. Verifique las Reglas de Firestore: " + e.message);
                 }
                 toggleLoading(false);
             } else {
@@ -2234,8 +2270,8 @@
                 return;
             }
 
-            // Obtener nombre del área desde la colección areas
-            const areaDoc = areas.find(a => a.id === obraId);
+            // Obtener nombre del proyecto: ya que el obraId es el nombre del proyecto (string)
+            const areaDoc = proyectosArr.find(a => a.id === obraId || a.nombre === obraId);
             const obraNombre = areaDoc ? (areaDoc.nombre || areaDoc.id) : obraId;
 
             if (!activePettyCash) {
