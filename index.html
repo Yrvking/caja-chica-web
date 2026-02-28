@@ -2041,9 +2041,17 @@
                     const isCreditNote = rootTag === 'CreditNote';
                     const isRetentionDoc = rootTag === 'Retention';
 
-                    // ── ID principal del comprobante (primer ID del documento)
-                    const allIds = getByTag('ID');
-                    const idNode = allIds.length > 0 ? allIds[0].textContent.trim() : '';
+                    // ── ID principal del comprobante (Serie-Número)
+                    // En UBL, el ID de la factura/nota es hijo directo de la raíz
+                    let idNode = Array.from(xmlDoc.documentElement.children)
+                        .find(c => c.localName === 'ID')?.textContent.trim();
+
+                    if (!idNode) {
+                        // Fallback: buscar el primer ID que parezca un formato de comprobante válido (ej. F001-1234, E001-12)
+                        const allIds = getByTag('ID');
+                        const validIdNode = Array.from(allIds).find(n => /^[A-Z0-9]{3,4}-\d{1,8}$/i.test(n.textContent.trim()));
+                        idNode = validIdNode ? validIdNode.textContent.trim() : (allIds.length > 0 ? allIds[0].textContent.trim() : '');
+                    }
 
                     if (!idNode) {
                         console.warn(`${file.name}: sin ID principal, no es XML SUNAT válido.`);
