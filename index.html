@@ -1265,20 +1265,10 @@
             }
         }
 
-        // ── Actualizar panel de logs de extracción ───────────────────
+        // ── Obsoleto: Panel UI ───────────────────
         function updateExtractionLog() {
-            const panel = el('extraction-log-panel');
-            const body = el('extraction-log-body');
             const count = el('log-count');
-            if (!panel || !body) return;
-            panel.style.display = extractionLogs.length ? '' : 'none';
-            count.textContent = `${extractionLogs.length} archivo${extractionLogs.length !== 1 ? 's' : ''}`;
-            body.innerHTML = extractionLogs.map(log => `
-                <div class="log-entry ${log.status}">
-                    <span class="log-file">${log.status === 'ok' ? '✅' : log.status === 'warn' ? '⚠️' : '❌'} ${log.file}</span>
-                    <span class="log-detail">${log.detail}</span>
-                </div>`).join('');
-            panel.open = true;
+            if (count) count.textContent = `${extractionLogs.length} archivo${extractionLogs.length !== 1 ? 's' : ''}`;
         }
 
         function renderExpensesTable() {
@@ -1701,16 +1691,46 @@
             toggleLoading(false);
         });
 
-        // ── Botón Logs ───────────────────────────────────────────────
+        // ── Botón Logs (Descarga TXT) ───────────────────────────────────────────────
         el('show-log-btn').addEventListener('click', () => {
-            const panel = el('extraction-log-panel');
-            if (panel.style.display === 'none' || !extractionLogs.length) {
-                if (!extractionLogs.length) { alert('No hay logs de extracción todavía. Suba un PDF o XML primero.'); return; }
-                panel.style.display = '';
-                panel.open = true;
-            } else {
-                panel.style.display = 'none';
+            if (!extractionLogs.length) {
+                alert('No hay logs de extracción en esta sesión. Suba un PDF o XML primero.');
+                return;
             }
+
+            let logText = `=================================================\n`;
+            logText += ` REPOSITORIO DE LOGS DE EXTRACCIÓN - CAJA CHICA\n`;
+            logText += ` Fecha de generación: ${new Date().toLocaleString()}\n`;
+            logText += `=================================================\n\n`;
+
+            const successLogs = extractionLogs.filter(l => l.status === 'ok');
+            const warnLogs = extractionLogs.filter(l => l.status === 'warn');
+            const errorLogs = extractionLogs.filter(l => l.status === 'error');
+
+            logText += `[✓] PROCESADOS EXITOSAMENTE (${successLogs.length}):\n`;
+            successLogs.forEach(log => {
+                logText += `  - Archivo: ${log.file}\n    Detalle: ${log.detail}\n`;
+            });
+
+            logText += `\n[⚠️] OMITIDOS / ADVERTENCIAS (${warnLogs.length}):\n`;
+            warnLogs.forEach(log => {
+                logText += `  - Archivo: ${log.file}\n    Detalle: ${log.detail}\n`;
+            });
+
+            logText += `\n[❌] ERRORES (${errorLogs.length}):\n`;
+            errorLogs.forEach(log => {
+                logText += `  - Archivo: ${log.file}\n    Detalle: ${log.detail}\n`;
+            });
+
+            const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `logs_extraccion_${new Date().getTime()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
 
         el('filter-obra')?.addEventListener('change', renderHistoryView);
