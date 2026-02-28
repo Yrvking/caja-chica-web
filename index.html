@@ -1589,8 +1589,9 @@
                     </label>
                 `).join('');
 
-                // Email: puede estar en user.email (desde Auth guardado al crear) o en user.emailTo[0]
-                const emailDisplay = user.email || (Array.isArray(user.emailTo) && user.emailTo.length > 0 ? user.emailTo[0] : '');
+                // Email: SOLO el campo 'email' del doc user (guardado al crear en Auth)
+                // NO usar emailTo que es el correo del destinatario/contacto, no del usuario
+                const emailDisplay = user.email || '';
 
                 row.innerHTML = `
                 <td>
@@ -1635,9 +1636,10 @@
 
             let proyectosParaMostrar;
             if (isAdmin) {
-                // Admin: todos los proyectos del ecosistema (union de arrays de todos users + areas)
-                const desdeAreas = proyectosArr.map(p => p.nombre || p.id);
-                proyectosParaMostrar = [...new Set([...desdeAreas, ...proyectosDelUsuario])].filter(Boolean).sort();
+                // Admin: recopilar todos los proyectos que aparecen en el array 'proyectos' de cualquier user
+                // NO usar la colección 'areas' (que son roles: administrativo, contabilidad, etc.)
+                const desdeUsuarios = usuarios.flatMap(u => u.proyectos || []);
+                proyectosParaMostrar = [...new Set([...desdeUsuarios, ...proyectosDelUsuario])].filter(Boolean).sort();
             } else {
                 proyectosParaMostrar = [...new Set(proyectosDelUsuario)].filter(Boolean);
             }
@@ -2579,8 +2581,14 @@
                             ruc = getFirstText('ID', partyIdNodes[0]);
                         }
                         if (!ruc) ruc = getFirstText('CustomerAssignedAccountID', supplier);
-                        // Razón social
-                        name = getFirstText('RegistrationName', supplier) || getFirstText('Name', supplier);
+                        // Razón social: RegistrationName tiene priority, luego Name
+                        let rawName = getFirstText('RegistrationName', supplier) || getFirstText('Name', supplier);
+                        // Limpiar: si el nombre contiene 'FACTURA ELECTRONICA', 'BOLETA', 'RECIBO', etc.
+                        // el XML a veces duplica el nombre pegado al tipo de doc — quedar solo con la primera parte
+                        rawName = rawName
+                            .replace(/\s*(FACTURA ELECTRONICA|BOLETA ELECTRONICA|NOTA DE CREDITO ELECTRONICA|RECIBO POR HONORARIOS ELECTRONICOS?).*$/i, '')
+                            .trim();
+                        name = rawName;
                     }
                     // RUC para retenciones (AgentParty)
                     if (!ruc && isRetentionDoc) {
@@ -2603,16 +2611,20 @@
                     const legalTotal = getByTag('LegalMonetaryTotal');
                     let total = 0, subtotal = 0, igv = 0;
                     if (legalTotal.length > 0) {
+                        // PayableAmount = total con IGV (o monto a pagar)
                         total = parseFloat(getFirstText('PayableAmount', legalTotal[0])) ||
                             parseFloat(getFirstText('TaxInclusiveAmount', legalTotal[0])) || 0;
+                        // LineExtensionAmount = subtotal SIN IGV (base imponible)
                         subtotal = parseFloat(getFirstText('LineExtensionAmount', legalTotal[0])) || 0;
                     }
                     if (isRetentionDoc) {
                         total = parseFloat(getFirstText('TotalInvoiceAmount')) || 0;
                     }
+                    // IGV = TaxAmount del primer TaxTotal
                     const taxNodes = getByTag('TaxTotal');
                     if (taxNodes.length > 0) igv = parseFloat(getFirstText('TaxAmount', taxNodes[0])) || 0;
-                    if (!subtotal) subtotal = total - igv;
+                    // Si el subtotal es 0, calcularlo como total - igv
+                    if (!subtotal && total > 0) subtotal = parseFloat((total - igv).toFixed(2));
 
                     // ── Descripción (primer línea)
                     const lineNodes = getByTag(isCreditNote ? 'CreditNoteLine' : 'InvoiceLine');
@@ -2626,10 +2638,16 @@
                     let tipo = isCreditNote ? 'NOTA DE CREDITO' : (isRetentionDoc ? 'RXH' : 'FACTURA');
                     if (isRetentionDoc) { igv = 0; subtotal = total; }
 
-                    // ── Verificar si es RxH por código de impuesto
-                    if (!isRetentionDoc) {
+                    // ── Verificar si es RxH por código de impuesto SUNAT:
+                    // EXA (exonerado), OTH (inafecto), RET (retención) = sin IGV = RxH u honorario
+                    // GV = con IGV = FACTURA o BOLETA
+                    // Solo documentos que NO son facturas/boletas por naturaleza deben revisarse
+                    if (!isRetentionDoc && !isCreditNote) {
                         const taxCatIds = getByTag('TaxCategory').flatMap(tc => getByTag('ID', tc));
-                        if (taxCatIds.some(n => n.textContent.includes('OTH') || n.textContent.includes('RET'))) {
+                        const hasIGV = taxCatIds.some(n => n.textContent.trim() === 'VAT' || n.textContent.trim() === 'S');
+                        const isExoOrInaf = taxCatIds.some(n => ['OTH', 'RET', 'E', 'O'].includes(n.textContent.trim()));
+                        // Si no hay IGV categoría VAT pero hay exonerado/inafecto = RxH o sin IGV
+                        if (!hasIGV && isExoOrInaf) {
                             tipo = 'RXH'; igv = 0; subtotal = total;
                         }
                     }
