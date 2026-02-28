@@ -1938,14 +1938,42 @@
                 let value = e.target.value;
                 if (e.target.type === 'date') value = e.target.valueAsDate;
                 if (e.target.type === 'number') value = parseFloat(value) || 0;
+
                 const updateData = { [field]: value };
-                if (field === 'total') {
-                    updateData.subtotal = value / 1.18;
-                    updateData.igv = value - updateData.subtotal;
+
+                // Tipo de documento actual
+                const typeInput = row.querySelector('[data-field="type"]');
+                const currentType = field === 'type' ? value : (typeInput ? typeInput.value : 'FACTURA');
+                const hasIGV = currentType === 'FACTURA' || currentType === 'NOTA DE CREDITO';
+
+                if (field === 'type') {
+                    const totalInput = row.querySelector('[data-field="total"]');
+                    const currentTotal = totalInput ? (parseFloat(totalInput.value) || 0) : 0;
+                    if (hasIGV) {
+                        updateData.subtotal = currentTotal / 1.18;
+                        updateData.igv = currentTotal - updateData.subtotal;
+                    } else {
+                        updateData.subtotal = currentTotal;
+                        updateData.igv = 0;
+                    }
+                } else if (field === 'total') {
+                    if (hasIGV) {
+                        updateData.subtotal = value / 1.18;
+                        updateData.igv = value - updateData.subtotal;
+                    } else {
+                        updateData.subtotal = value;
+                        updateData.igv = 0;
+                    }
                 } else if (field === 'subtotal') {
-                    updateData.igv = value * 0.18;
-                    updateData.total = value + updateData.igv;
+                    if (hasIGV) {
+                        updateData.igv = value * 0.18;
+                        updateData.total = value + updateData.igv;
+                    } else {
+                        updateData.igv = 0;
+                        updateData.total = value;
+                    }
                 }
+
                 try {
                     await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", expenseId), updateData);
                 } catch (error) { console.error("Error al actualizar gasto:", error); }
@@ -1970,6 +1998,10 @@
                 await addDoc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"), {
                     date: serverTimestamp(), type: 'OTRO', seriesNumber: '', ruc: '', name: '', pc: '',
                     description: '', subtotal: 0, igv: 0, total: 0, createdAt: serverTimestamp()
+                });
+                extractionLogs.push({
+                    file: 'Registro Manual', status: 'ok',
+                    detail: 'OTRO | Sin Serie | Sin RUC | Añadido manualmente (IGV: 0.00)'
                 });
             } catch (error) { console.error("Error al agregar fila:", error); alert("No se pudo agregar la fila."); }
             toggleLoading(false);
@@ -2159,12 +2191,19 @@
                         expenses.push(expenseData);
 
                         processedCount++;
+
+                        extractionLogs.push({
+                            file: file.name, status: 'ok',
+                            detail: `${tipo} | ${seriesNumber || '?'} | ${name || ruc || '?'} | Total: ${total.toFixed(2)} | IGV: ${igv.toFixed(2)}`
+                        });
                     } else {
                         console.warn(`${file.name}: total=0, se omite.`);
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: 'Omitido: El monto total extraído fue cero.' });
                     }
 
                 } catch (error) {
                     console.error(`Error procesando el archivo ${file.name}:`, error);
+                    extractionLogs.push({ file: file.name, status: 'error', detail: 'Falló el procesamiento interno del XML.' });
                 }
             }
 
