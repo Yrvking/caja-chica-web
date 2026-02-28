@@ -1583,11 +1583,11 @@
                 // Los proyectos son un array de strings (nombres) directamente en el doc user
                 const userProyectos = user.proyectos || [];
 
-                // Obtener todos los proyectos disponibles combinando proyectosArr y proyectos de todos los usuarios
-                const todosProyectos = [...new Set([
-                    ...proyectosArr.map(p => p.nombre || p.id),
-                    ...usuarios.flatMap(u => u.proyectos || [])
-                ])].filter(Boolean).sort();
+                // Obtener todos los proyectos disponibles SOLO desde los arrays 'proyectos' de usuarios
+                // NO usar proyectosArr que son 'areas' (OBRA, POSTVENTA, etc.) - eso son roles, no proyectos
+                const todosProyectos = [...new Set(
+                    usuarios.flatMap(u => u.proyectos || [])
+                )].filter(p => p && p.trim()).sort();
 
                 const proyectosHtml = todosProyectos.map(nombre => `
                     <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
@@ -2785,7 +2785,15 @@
                             .filter(l => !clienteRE.test(l) && !l.includes(ruc));
                         const topText = topLines.join(' ');
                         const m1 = topText.match(rsRE);
-                        if (m1) razonSocial = m1[1].trim();
+                        if (m1) {
+                            // Limpiar texto de tipo de comprobante que se pega al nombre
+                            razonSocial = m1[1].trim()
+                                .replace(/\s+FACTURA\s+ELECTR[OÓ]NICA.*/i, '')
+                                .replace(/\s+BOLETA\s+ELECTR[OÓ]NICA.*/i, '')
+                                .replace(/\s+RECIBO\s+POR\s+HONORARIO.*/i, '')
+                                .replace(/\s+NOTA\s+DE\s+CR[EÉ]DITO.*/i, '')
+                                .trim();
+                        }
 
                         // Estrategia 2: buscar SOLO ANTES del RUC (no después = receptor)
                         if (!razonSocial) {
@@ -2831,10 +2839,20 @@
 
                     // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
                     const fText = fullText.toUpperCase();
-                    let type = 'FACTURA';
-                    if (fText.includes('RECIBO POR HONORARIO') || (seriesNumber && seriesNumber.startsWith('E'))) type = 'RXH';
-                    else if (fText.includes('BOLETA DE VENTA') || (seriesNumber && seriesNumber.startsWith('B'))) type = 'BOLETA';
-                    else if (fText.includes('NOTA DE CR') || (seriesNumber && seriesNumber.match(/^[FC]\d{3}/i) && fText.includes('NOTA'))) type = 'NOTA DE CREDITO';
+                    let type = 'FACTURA'; // default
+                    // REGLA: El tipo se determina por el TEXTO del encabezado del PDF
+                    // E001 puede ser RxH O Factura electronica - el prefijo NO es el discriminador
+                    if (fText.includes('RECIBO POR HONORARIO')) {
+                        type = 'RXH'; // RxH no tiene IGV
+                    } else if (fText.includes('NOTA DE CR')) {
+                        type = 'NOTA DE CREDITO';
+                    } else if (fText.includes('BOLETA DE VENTA') || fText.includes('BOLETA ELECTR')) {
+                        type = 'BOLETA';
+                    } else if (fText.includes('FACTURA ELECTR') || fText.includes('FACTURA DE VENTA') || fText.includes('FACTURA COMERCIAL')) {
+                        type = 'FACTURA'; // tiene IGV 18%
+                    } else if (seriesNumber && /^B/i.test(seriesNumber)) {
+                        type = 'BOLETA'; // solo B... como fallback
+                    }
 
                     // ── FECHA ────────────────────────────────────────────────────────
                     const dateMatch = fullText.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/)
@@ -2860,16 +2878,20 @@
                     };
 
                     let total = getAmount(
-                        new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|TOTAL\\s+VENTA)[\\s\\S]{0,40}${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                        new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|TOTAL\\s+VENTA|PRECIO\\s+TOTAL)[\\s\\S]{0,40}${MON}([\\d,]+\\.\\d{2})`, 'i'),
                         new RegExp(`TOTAL[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
                         new RegExp(`${MON}([\\d]{1,6}\\.\\d{2})\\s*(?:$|\\n)`, 'im')
                     );
                     let igv = getAmount(
-                        new RegExp(`I\\.?G\\.?V\\.?[:\\s(]*(?:18\\s*%)?[)\\s]*${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                        /IGV[:\s]+([\d,]+\.\d{2})/i
+                        // SUNAT: I.G.V. 18% S/ xxx.xx
+                        new RegExp(`I\\.?G\\.?V\\.?[:\\s(]*(?:18\\s*%)?[)\\s]*${MON}\\s*([\\d,]+\\.\\d{2})`, 'i'),
+                        /IGV[:\s]+S\/\.?\s*(\d[\d,]+\.\d{2})/i,
+                        /IGV[\s:]+([\d,]+\.\d{2})/i,
+                        /18\s*%[\s:]*S\/\.?\s*([\d,]+\.\d{2})/i
                     );
                     let subtotal = getAmount(
-                        new RegExp(`(?:OP(?:ERACI[O\u00d3]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
+                        new RegExp(`(?:OP(?:ERACI[OÓ]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada|MONTO\\s+ANTES|VALOR\\s+NETO)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                        new RegExp(`Op\\.\\s*Gravada[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
                     );
 
                     // ── Validar duplicados ──────────────────────────────────────
