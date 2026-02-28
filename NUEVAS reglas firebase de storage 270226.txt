@@ -1,0 +1,35 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function esAdmin() {
+      return request.auth != null &&
+        firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        ).data.rol == 'ADMIN';
+    }
+
+    // Consentimientos (firma)
+    match /consentimientos/{uid}/{filename} {
+      allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Planillas PDF (guardadas por UID)
+    match /planillas/{uid}/{filename} {
+      allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow write: if request.auth != null && (request.auth.uid == uid || esAdmin());
+    }
+
+    // Comprobantes de pago (transferencias, etc.)
+    match /comprobantes/{uid}/{planillaKey}/{filename} {
+      allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow write: if request.auth != null && esAdmin();
+    }
+    // Logos de empresa
+    match /logos/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && esAdmin();
+    }  
+  }
+}

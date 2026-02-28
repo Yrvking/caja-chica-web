@@ -856,6 +856,7 @@
             <div class="tabs">
                 <button class="tab active" data-view="caja-chica">Caja Chica</button>
                 <button class="tab" data-view="history">Historial</button>
+                <button class="tab" id="tab-revision" data-view="revision" style="display:none">Revisión</button>
                 <button id="tab-admin" class="tab" data-view="settings" style="display:none">Ajustes</button>
             </div>
         </div>
@@ -1025,6 +1026,31 @@
                 </div>
             </div>
 
+            <!-- VISTA BADEJA REVISIÓN -->
+            <div id="revision-view" class="view" style="display:none;">
+                <div class="card">
+                    <div class="card-h"><b>Cajas Chicas Pendientes de Revisión</b></div>
+                    <div style="overflow-x:auto;" class="card-b">
+                        <table class="data-table" id="revision-table">
+                            <thead>
+                                <tr>
+                                    <th>Caja N°</th>
+                                    <th>Fecha Envío</th>
+                                    <th>Obra</th>
+                                    <th>Remitente</th>
+                                    <th>Asignado</th>
+                                    <th>Gastado</th>
+                                    <th>Saldo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revision-table-body"></tbody>
+                        </table>
+                        <p id="revision-empty-msg">No hay cajas pendientes de revisión.</p>
+                    </div>
+                </div>
+            </div>
+
             <div id="settings-view" class="view">
                 <div class="card">
                     <div class="card-h"><b>Obras (Proyectos)</b><span class="toggle-collapse"
@@ -1189,6 +1215,29 @@
         </div>
     </div>
 
+    <!-- MODAL DE FIRMAS CAJA CHICA -->
+    <div id="signature-modal-overlay"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+        <div class="signature-modal"
+            style="background:#fff; padding:24px; border-radius:var(--radius-lg); width:90%; max-width:500px; text-align:center;">
+            <h3 style="margin-bottom:8px;">Firma de Conformidad</h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Trace su firma en el recuadro para
+                enviar la Caja Chica a Revisión.</p>
+            <div
+                style="border:2px dashed var(--border); border-radius:var(--radius-md); margin:16px 0; background:#fdfdfd; touch-action:none;">
+                <canvas id="signature-pad" width="450" height="200"
+                    style="width:100%; height:200px; cursor:crosshair;"></canvas>
+            </div>
+            <div style="display:flex; justify-content:center;">
+                <button id="btn-clear-sig" class="btn ghost btn-sm">Limpiar Trazo</button>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button id="btn-cancel-sig" class="btn secondary" style="flex:1;">Cancelar</button>
+                <button id="btn-save-sig" class="btn primary" style="flex:1;">Enviar a Revisión 📋</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
@@ -1220,6 +1269,11 @@
         let currentProjectId = '';
         let activeProjectListener = null;
         let activeExpensesListener = null;
+
+        // Variables Canvas Firma
+        let isDrawing = false;
+        let signatureCtx = null;
+        let lastX = 0, lastY = 0;
 
         const getActiveCajaId = () => {
             if (!currentProjectId) {
@@ -1260,7 +1314,10 @@
 
         function setupListeners() {
             const isAdmin = currentUserData.rol === 'ADMIN';
-            el('tab-admin').style.display = isAdmin ? 'block' : 'none';
+            const isResidente = currentUserData.rol === 'RESIDENTE';
+
+            el('tab-admin').style.display = isAdmin ? 'inline-block' : 'none';
+            el('tab-revision').style.display = (isAdmin || isResidente) ? 'inline-block' : 'none';
 
             listeners.push(onSnapshot(collection(db, "partidasContables"), s => {
                 partidasContables = s.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1296,6 +1353,15 @@
                 renderHistoryView();
                 updateHistoryFilters();
             }));
+
+            if (isAdmin || isResidente) {
+                listeners.push(onSnapshot(query(collection(db, "cajasChicasActivas")), s => {
+                    // Re-renderizar bandeja revisión si está activo el tab "Revisión"
+                    if (document.getElementById('revision-view')?.classList.contains('active')) {
+                        loadPendingReviews();
+                    }
+                }));
+            }
 
             if (isAdmin) {
                 listeners.push(onSnapshot(collection(db, "users"), s => {
@@ -1655,6 +1721,140 @@
             if (elTotalGastado) elTotalGastado.textContent = `S/ ${sumGastado.toFixed(2)}`;
             const elSaldoFinal = el('hist-saldo-final');
             if (elSaldoFinal) elSaldoFinal.textContent = `S/ ${sumSaldo.toFixed(2)}`;
+        }
+
+        // --- BANDEJA DE REVISIÓN (VB RESIDENTE) ---
+        async function loadPendingReviews() {
+            const tbody = el('revision-table-body');
+            const emptyMsg = el('revision-empty-msg');
+            const table = el('revision-table');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            toggleLoading(true);
+
+            try {
+                // Consultamos las cajas enviadas a revisión ('EN REVISION')
+                const q = query(collection(db, "cajasChicasActivas"));
+                const querySnapshot = await import("https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js").then(module => module.getDocs(q));
+
+                let pendingBoxes = [];
+                querySnapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    if (data.status === 'EN REVISION') {
+                        pendingBoxes.push({ id: docSnap.id, ...data });
+                    }
+                });
+
+                if (pendingBoxes.length === 0) {
+                    table.style.display = 'none';
+                    emptyMsg.style.display = 'block';
+                } else {
+                    table.style.display = 'table';
+                    emptyMsg.style.display = 'none';
+
+                    pendingBoxes.forEach(box => {
+                        const tr = document.createElement('tr');
+                        const sendDate = box.submittedAt && box.submittedAt.seconds ? new Date(box.submittedAt.seconds * 1000).toLocaleString('es-PE') : 'N/A';
+                        const initial = box.initialAmount || 0;
+                        const total = box.totalGastado || 0;
+                        const saldo = initial - total;
+
+                        tr.innerHTML = `
+                            <td>${box.cajaNumero || 'S/N'}</td>
+                            <td>${sendDate}</td>
+                            <td>${box.obraNombre || 'General'}</td>
+                            <td>${box.ownerName || box.ownerId}</td>
+                            <td>S/ ${initial.toFixed(2)}</td>
+                            <td>S/ ${total.toFixed(2)}</td>
+                            <td style="color:${saldo >= 0 ? 'var(--success-text)' : 'var(--danger-text)'}">S/ ${saldo.toFixed(2)}</td>
+                            <td>
+                                <button class="btn primary btn-sm action-approve" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Cerrar VB</button>
+                                <button class="btn danger btn-sm action-reject" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Rechazar</button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            } catch (e) {
+                console.error("Error al cargar revisiones", e);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        el('revision-table-body')?.addEventListener('click', async (e) => {
+            const btnApprove = e.target.closest('.action-approve');
+            const btnReject = e.target.closest('.action-reject');
+
+            if (btnApprove) {
+                const boxId = btnApprove.dataset.id;
+                if (confirm("¿Estás seguro de Aprobar y Cerrar definitivamente esta caja? (Pasará al historial)")) {
+                    await approveAndCloseBox(boxId);
+                }
+            } else if (btnReject) {
+                const boxId = btnReject.dataset.id;
+                if (confirm("¿Estás seguro de Rechazar esta caja? Volverá a estado ACTIVA para el usuario.")) {
+                    toggleLoading(true);
+                    try {
+                        await updateDoc(doc(db, "cajasChicasActivas", boxId), {
+                            status: 'ACTIVA',
+                            firmaRemitenteUrl: null
+                        });
+                        alert("Caja devuelta a estado ACTIVA.");
+                        loadPendingReviews();
+                    } catch (error) {
+                        console.error(error);
+                        alert("Error al rechazar caja");
+                    } finally {
+                        toggleLoading(false);
+                    }
+                }
+            }
+        });
+
+        async function approveAndCloseBox(boxId) {
+            toggleLoading(true);
+            try {
+                // Para mantener la lógica del modal de firmas también para el residente, deberíamos levantar el modal aquí
+                // Pero para simplicidad de cierre V1 lo pasaremos directo
+                const { getDocs } = await import("https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js");
+
+                const pettyCashRef = doc(db, "cajasChicasActivas", boxId);
+                const pettyCashSnap = await getDoc(pettyCashRef);
+                if (!pettyCashSnap.exists()) throw new Error("Caja no encontrada");
+                const activeData = pettyCashSnap.data();
+
+                const batch = writeBatch(db);
+                const historyRef = doc(collection(db, "cajasChicasHistorial"));
+                const finalData = {
+                    ...activeData,
+                    status: 'CERRADA',
+                    closedAt: serverTimestamp(),
+                    residenteAprobadorId: currentUserData.uid,
+                    residenteAprobadorNombre: currentUserData.nombres || currentUserData.email
+                };
+                batch.set(historyRef, finalData);
+
+                // Mover expenses
+                const qExp = query(collection(db, "cajasChicasActivas", boxId, "expenses"));
+                const expSnap = await getDocs(qExp);
+                expSnap.forEach(docSnap => {
+                    const newExpenseRef = doc(collection(historyRef, "expenses"), docSnap.id);
+                    batch.set(newExpenseRef, docSnap.data());
+                });
+
+                batch.delete(pettyCashRef);
+                await batch.commit();
+
+                alert(`Caja ${activeData.cajaNumero} ha sido CERRADA y aprobada definitivamente.`);
+                loadPendingReviews();
+            } catch (error) {
+                console.error("Error al aprobar caja:", error);
+                alert("Ocurrió un error al aprobar la caja.");
+            } finally {
+                toggleLoading(false);
+            }
         }
 
         function updateActiveBoxUI() {
@@ -2175,35 +2375,59 @@
             toggleLoading(false);
         });
 
-        async function closePettyCash() {
-            if (!activePettyCash || !confirm("¿Está seguro de que desea cerrar y liquidar esta caja chica? Esta acción no se puede deshacer.")) return;
+        function closePettyCash() {
+            if (!activePettyCash || expenses.length === 0) {
+                alert("No hay gastos para procesar o caja activa.");
+                return;
+            }
+            if (!confirm("¿Está seguro de que desea ENVIAR A REVISIÓN esta caja chica? Pasará al Residente u Oficina Técnica.")) return;
+
+            // Limpiar canvas
+            const canvas = document.getElementById('signature-pad');
+            signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
+            el('signature-modal-overlay').style.display = 'flex';
+        }
+
+        async function finalizePettyCashSubmission() {
+            const canvas = document.getElementById('signature-pad');
+            const dataUrl = canvas.toDataURL('image/png');
+            // Verificar caja vacia (heuristica burda pero funcional)
+            // if(dataUrl.length < 5000) return alert("Debe realizar su firma"); 
+            // Preferimos que lo mande aun si firma chico.
+
+            el('signature-modal-overlay').style.display = 'none';
             toggleLoading(true);
+
             try {
-                const batch = writeBatch(db);
-                const historyRef = doc(collection(db, "cajasChicasHistorial"));
-                const finalData = {
-                    ...activePettyCash,
-                    status: 'CERRADA',
-                    closedAt: serverTimestamp(),
-                    totalGastado: expenses.reduce((sum, exp) => sum + exp.total, 0)
-                };
-                batch.set(historyRef, finalData);
-                expenses.forEach(exp => {
-                    const newExpenseRef = doc(collection(historyRef, "expenses"), exp.id);
-                    batch.set(newExpenseRef, exp);
-                });
                 const cajaId = getActiveCajaId();
-                const oldPettyCashRef = doc(db, "cajasChicasActivas", cajaId);
-                batch.delete(oldPettyCashRef);
-                await batch.commit();
-                alert(`Caja ${activePettyCash.cajaNumero} cerrada y enviada al historial.`);
+                const totalCalculado = expenses.reduce((sum, exp) => sum + exp.total, 0);
+
+                // Subir Firma
+                const fileName = `firma_${cajaId}_${Date.now()}.png`;
+                const fileRef = ref(storage, `caja_chica_firmas/${fileName}`);
+                const res = await fetch(dataUrl);
+                const blob = await res.blob();
+                const snapshot = await uploadBytes(fileRef, blob);
+                const firmaRemitenteUrl = await getDownloadURL(snapshot.ref);
+
+                // En lugar de borrar y mandarlo al historial, solo cambiamos a EN REVISION
+                const pettyCashRef = doc(db, "cajasChicasActivas", cajaId);
+                await updateDoc(pettyCashRef, {
+                    status: 'EN REVISION',
+                    totalGastado: totalCalculado,
+                    firmaRemitenteUrl: firmaRemitenteUrl,
+                    submittedAt: serverTimestamp()
+                });
+
+                alert(`Caja ${activePettyCash.cajaNumero} enviada correctamente a revisión.`);
             } catch (error) {
-                console.error("Error al cerrar caja:", error);
-                alert("Ocurrió un error al cerrar la caja.");
+                console.error("Error al enviar caja a revisión:", error);
+                alert("Ocurrió un error al enviar la caja a revisión.");
             } finally {
                 toggleLoading(false);
             }
         }
+
         el('btn-close-box').addEventListener('click', closePettyCash);
 
         // --- NUEVA LÓGICA PARA EXTRACCIÓN DE XML ---
