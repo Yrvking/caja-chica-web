@@ -1222,11 +1222,13 @@
                 <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}" style="text-align:right;"></td>
                 <td><input type="number" data-field="igv"      value="${(expense.igv || 0).toFixed(2)}"      style="text-align:right; color:var(--text-muted);" disabled></td>
                 <td><input type="number" data-field="total"    value="${(expense.total || 0).toFixed(2)}"    style="text-align:right; font-weight:600;"></td>
-                <td style="text-align:center; padding:2px 3px;">
-                    ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver comprobante" style="font-size:14px;">📄</a> ` : ''}
-                    <label for="file-${expense.id}" style="cursor:pointer; font-size:14px;" title="Adjuntar comprobante">📎</label>
-                    <input type="file" id="file-${expense.id}" style="display:none" data-action="upload-expense-file">
-                    <button class="btn danger btn-sm icon-btn" data-action="delete-expense" style="padding:2px 4px; font-size:12px;">🗑️</button>
+                <td style="padding:2px 3px; white-space:nowrap;">
+                    <div style="display:flex; align-items:center; gap:2px; justify-content:center;">
+                        ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver comprobante" style="font-size:13px; line-height:1;">📄</a>` : ''}
+                        <label for="file-${expense.id}" style="cursor:pointer; font-size:13px; line-height:1; margin:0;" title="Adjuntar comprobante">📎</label>
+                        <input type="file" id="file-${expense.id}" style="display:none" data-action="upload-expense-file">
+                        <button class="btn danger btn-sm icon-btn" data-action="delete-expense" style="padding:1px 4px; font-size:11px; line-height:1.2;">🗑️</button>
+                    </div>
                 </td>`;
 
                 row.querySelector('[data-field="pc"]').value = expense.pc || '';
