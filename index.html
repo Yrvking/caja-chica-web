@@ -340,60 +340,71 @@
             border-radius: 0 0 0 0;
         }
 
+        /* BRAND + HEADER compacto: logo+empresa a la izquierda, controles a la derecha */
         .brand {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 24px;
-            background: rgba(255, 255, 255, 0.08);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            background: transparent;
             margin: 0;
+            gap: 16px;
+        }
+
+        .brand-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex: 1;
         }
 
         #company-logo {
-            max-height: 26px;
+            max-height: 52px;
+            min-height: 40px;
             background: white;
-            padding: 4px;
-            border-radius: 4px;
+            padding: 5px 7px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            flex-shrink: 0;
         }
 
         .cinfo {
-            text-align: right;
-            font-size: 10px;
+            text-align: left;
+            font-size: 11px;
             color: rgba(255, 255, 255, 0.85);
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
         .cinfo b {
             color: white;
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: 700;
             display: block;
             margin-bottom: 2px;
+            letter-spacing: 0.02em;
         }
 
-        .title-section {
+        .brand-right {
             display: flex;
-            justify-content: center;
             align-items: center;
-            padding: 14px 24px;
-            background: rgba(0, 0, 0, 0.15);
-            margin: 0;
-            flex-direction: column;
-            gap: 8px;
+            gap: 10px;
+            flex-shrink: 0;
         }
 
-        .title-section h2 {
-            font-size: 14px;
+        /* Ya no necesitamos title-section como bloque central */
+        .title-section {
+            display: none; /* oculto - título movido a brand */
+        }
+
+        #global-project-select-header {
+            font-size: 12px;
+            padding: 4px 8px;
+            width: auto;
             font-weight: 600;
-            color: white;
-            margin: 0;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            padding: 8px 24px;
-            background: rgba(255, 255, 255, 0.12);
-            border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--primary-dark);
+            background: #e0f2fe;
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
         }
 
         #caja-chica-status {
@@ -623,6 +634,25 @@
             border-top-left-radius: 6px;
         }
 
+        /* Columna Acciones sticky a la derecha de la tabla */
+        #expenses-table th:last-child,
+        #expenses-table td:last-child {
+            position: sticky;
+            right: 0;
+            background: #1e3a5f;
+            z-index: 2;
+            box-shadow: -2px 0 4px rgba(0,0,0,0.15);
+        }
+        #expenses-table tbody td:last-child {
+            background: white;
+        }
+        #expenses-table tbody tr:nth-child(even) td:last-child {
+            background: #f8fafc;
+        }
+        #expenses-table tbody tr:hover td:last-child {
+            background: #eff6ff;
+        }
+
         .data-table th:last-child {
             border-top-right-radius: 6px;
         }
@@ -835,22 +865,25 @@
         <!-- HEADER PRINCIPAL -->
         <div class="document-header">
             <div class="brand">
-                <img id="company-logo" alt="Logo" style="display:none;" />
-                <div id="company-info" class="cinfo"></div>
-            </div>
-            <div class="title-section">
-                <h2 id="caja-chica-title" style="margin-bottom:0;">SISTEMA DE CAJA CHICA WEB</h2>
-                <div style="margin-top:6px; margin-bottom: 4px;">
+                <!-- Izquierda: logo + info empresa (prominente) -->
+                <div class="brand-left">
+                    <img id="company-logo" alt="Logo" style="display:none;" />
+                    <div id="company-info" class="cinfo"></div>
+                </div>
+                <!-- Derecha: sistema + proyecto + usuario + logout (compacto) -->
+                <div class="brand-right">
+                    <span style="font-size:11px; font-weight:600; color:rgba(255,255,255,0.7); letter-spacing:0.08em; text-transform:uppercase; white-space:nowrap;">CAJA CHICA WEB</span>
                     <select id="global-project-select"
-                        style="font-size:12px; padding:4px 8px; width:auto; display:inline-block; font-weight:600; color:var(--primary-dark); background:#e0f2fe; border:1px solid #bae6fd;">
-                        <option value="">-- Seleccione un Proyecto --</option>
+                        style="font-size:12px; padding:4px 8px; width:auto; display:inline-block; font-weight:600; color:var(--primary-dark); background:#e0f2fe; border:1px solid #bae6fd; border-radius:6px;">
+                        <option value="">-- Proyecto --</option>
                     </select>
+                    <div id="who" class="who" style="background:rgba(255,255,255,0.9); font-size:12px; padding:4px 10px;">No autenticado</div>
+                    <button id="btn-logout" class="btn ghost small" style="display:none; font-size:11px; padding:3px 10px; height:auto;">Salir</button>
                 </div>
+            </div>
+            <!-- title-section vacío (oculto por CSS) -->
+            <div class="title-section" style="display:none;">
                 <div id="caja-chica-status" style="display:none;font-size:11px;"></div>
-                <div id="who" class="who" style="background: rgba(255,255,255,0.9); margin-top: 5px;">No autenticado
-                </div>
-                <button id="btn-logout" class="btn ghost small" style="display:none; margin-top: 8px;">Cerrar
-                    Sesión</button>
             </div>
 
             <div class="tabs">
@@ -1584,10 +1617,12 @@
                 const userProyectos = user.proyectos || [];
 
                 // Obtener todos los proyectos disponibles SOLO desde los arrays 'proyectos' de usuarios
-                // NO usar proyectosArr que son 'areas' (OBRA, POSTVENTA, etc.) - eso son roles, no proyectos
+                // Excluir valores que corresponden a áreas/roles, no a proyectos reales
+                const AREAS_CONOCIDAS = ['ADMINISTRATIVO', 'ADMINISTRATIVOS', 'CONTABILIDAD', 'MARKETING',
+                    'OBRA', 'OBRAS', 'POSTVENTA', 'PROYECTOS', 'GERENCIA', 'LOGISTICA', 'SISTEMAS'];
                 const todosProyectos = [...new Set(
                     usuarios.flatMap(u => u.proyectos || [])
-                )].filter(p => p && p.trim()).sort();
+                )].filter(p => p && p.trim() && !AREAS_CONOCIDAS.includes(p.toUpperCase().trim())).sort();
 
                 const proyectosHtml = todosProyectos.map(nombre => `
                     <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
@@ -1643,10 +1678,13 @@
 
             let proyectosParaMostrar;
             if (isAdmin) {
-                // Admin: recopilar todos los proyectos que aparecen en el array 'proyectos' de cualquier user
-                // NO usar la colección 'areas' (que son roles: administrativo, contabilidad, etc.)
+                // Admin: recopilar todos los proyectos del array 'proyectos' de cualquier user
+                // Excluir nombres de áreas/roles que no son proyectos reales
+                const AREAS_EXCLUIR = ['ADMINISTRATIVO', 'ADMINISTRATIVOS', 'CONTABILIDAD', 'MARKETING',
+                    'OBRA', 'OBRAS', 'POSTVENTA', 'PROYECTOS', 'GERENCIA', 'LOGISTICA', 'SISTEMAS'];
                 const desdeUsuarios = usuarios.flatMap(u => u.proyectos || []);
-                proyectosParaMostrar = [...new Set([...desdeUsuarios, ...proyectosDelUsuario])].filter(Boolean).sort();
+                proyectosParaMostrar = [...new Set([...desdeUsuarios, ...proyectosDelUsuario])]
+                    .filter(p => p && !AREAS_EXCLUIR.includes(p.toUpperCase().trim())).sort();
             } else {
                 proyectosParaMostrar = [...new Set(proyectosDelUsuario)].filter(Boolean);
             }
