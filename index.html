@@ -1262,7 +1262,7 @@
         const secondaryApp = initializeApp(firebaseConfig, "Secondary");
         const secondaryAuth = getAuth(secondaryApp);
 
-        let currentUserData, empresas = [], areas = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
+        let currentUserData, empresas = [], obrasArr = [], usuarios = [], partidasContables = [], expenses = [], activePettyCash = null, historyBoxes = [];
         let listeners = [];
         let sortField = 'createdAt', sortDir = 'desc';
         let extractionLogs = [];
@@ -1333,8 +1333,8 @@
                 }
             }));
 
-            listeners.push(onSnapshot(query(collection(db, "areas")), s => {
-                areas = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            listeners.push(onSnapshot(query(collection(db, "obras")), s => {
+                obrasArr = s.docs.map(d => ({ id: d.id, ...d.data() }));
                 renderObrasDropdowns();
                 if (isAdmin) renderObrasTable();
 
@@ -1557,26 +1557,29 @@
                 row.dataset.id = user.id;
                 const empresaOptions = empresas.map(e => `<option value="${e.id}" ${e.id === user.empresaId ? 'selected' : ''}>${e.nombre || e.razon}</option>`).join('');
 
-                // Generar checkboxes de proyectos
+                // Generar checkboxes de proyectos compacto (checkbox a la izquierda en una línea)
                 const userProyectos = user.proyectos || [];
-                const proyectosHtml = areas.map(a => `
-                    <label style="display:block; font-size:11px; margin-bottom:2px;">
-                        <input type="checkbox" class="user-proyectos-cb" value="${a.id}" ${userProyectos.includes(a.id) ? 'checked' : ''} disabled> ${a.nombre || a.id}
+                const proyectosHtml = obrasArr.map(a => `
+                    <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
+                        <input type="checkbox" class="user-proyectos-cb" value="${a.id}" ${userProyectos.includes(a.id) ? 'checked' : ''} disabled>
+                        <span>${a.nombre || a.id}</span>
                     </label>
                 `).join('');
 
                 row.innerHTML = `
                 <td>
-                    <input class="user-nombres read-only-input" value="${user.nombres || '(Sin Nombre)'}" readonly>
-                    <div style="margin-top:4px; font-size:11px;">
-                        <label><input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled> Permitir acceso a Caja Chica</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input class="user-nombres read-only-input" value="${user.nombres || ''}" placeholder="Nombre" readonly style="width:120px;">
+                        <label style="font-size:11px; display:flex; align-items:center; gap:4px; white-space:nowrap;">
+                            <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled> Acceso CC
+                        </label>
                     </div>
                 </td>
-                <td><span class="user-email-display">${user.email || '(Sin Email)'}</span></td>
-                <td><select class="user-empresa" disabled><option value="">Ninguna</option>${empresaOptions}</select></td>
-                <td><select class="user-rol" disabled><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
+                <td><span class="user-email-display" style="font-size:11px; color:#555;">${user.email || ''}</span></td>
+                <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
+                <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
-                    <div style="max-height:80px; overflow-y:auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#f9f9f9;">
+                    <div style="max-height:80px; overflow-y:auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#f9f9f9; display:flex; flex-direction:column; min-width:140px;">
                         ${proyectosHtml}
                     </div>
                 </td>
@@ -1599,19 +1602,19 @@
             const filterObra = el('filter-obra');
             const globalSelect = el('global-project-select');
 
-            // Usar proyectos asignados al usuario; si no tiene, mostrar todas las áreas
+            // Usar proyectos asignados al usuario; si no tiene, mostrar todas las obras
             const proyectosAsignados = currentUserData?.proyectos || [];
-            let areasFiltradas;
+            let obrasFiltradas;
 
             if (proyectosAsignados.length > 0) {
-                // El usuario tiene proyectos asignados: filtrar las areas por ID o nombre
-                areasFiltradas = areas.filter(a => proyectosAsignados.includes(a.id) || proyectosAsignados.includes(a.nombre));
+                // El usuario tiene proyectos asignados: filtrar las obras por ID o nombre
+                obrasFiltradas = obrasArr.filter(a => proyectosAsignados.includes(a.id) || proyectosAsignados.includes(a.nombre));
             } else {
-                // Sin asignación específica: mostrar todas las áreas disponibles
-                areasFiltradas = areas;
+                // Sin asignación específica: mostrar todas
+                obrasFiltradas = obrasArr;
             }
 
-            const optionsHtml = areasFiltradas.map(a => `<option value="${a.id}">${a.nombre || a.id}</option>`).join('');
+            const optionsHtml = obrasFiltradas.map(a => `<option value="${a.id}">${a.nombre || a.id}</option>`).join('');
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
@@ -1626,7 +1629,7 @@
             if (globalSelect) {
                 const currentVal = globalSelect.value;
                 globalSelect.innerHTML = '<option value="">-- Seleccione un Proyecto --</option>' + optionsHtml;
-                if (currentVal && areasFiltradas.some(a => a.id === currentVal)) {
+                if (currentVal && obrasFiltradas.some(a => a.id === currentVal)) {
                     globalSelect.value = currentVal;
                 }
             }
@@ -1636,13 +1639,15 @@
             const tbody = el('obras-table-body');
             if (!tbody) return;
             tbody.innerHTML = '';
-            areas.forEach(a => {
+            obrasArr.forEach(a => {
                 const row = document.createElement('tr');
                 row.dataset.id = a.id;
                 row.innerHTML = `
-                    <td>-</td>
-                    <td>${a.nombre || a.id}</td>
-                    <td><button class="btn danger btn-sm" disabled title="Administrado desde Planilla Web">Eliminar (Solo lectura)</button></td>
+                    <td>${a.id || '-'}</td>
+                    <td><input class="obra-nombre" value="${a.nombre || ''}" readonly style="border:none; background:transparent;"></td>
+                    <td>
+                        <button class="btn primary btn-sm" data-action="edit-obra" style="padding:2px 6px;">Editar</button>
+                    </td>
                 `;
                 tbody.appendChild(row);
             });
@@ -1946,6 +1951,30 @@
             if (!row) return;
 
             if (action === 'edit-user') {
+                // Auto-guardar previas filas en edición antes de editar una nueva
+                const currentlyEditing = document.querySelectorAll('#users-table-body tr.is-editing');
+                if (currentlyEditing.length > 0) {
+                    for (const prevRow of currentlyEditing) {
+                        try {
+                            const prevId = prevRow.dataset.id;
+                            const prevName = prevRow.querySelector('.user-nombres').value.trim();
+                            const prevRole = prevRow.querySelector('.user-rol').value;
+                            const prevEmpresaId = prevRow.querySelector('.user-empresa').value;
+                            const prevProjects = Array.from(prevRow.querySelectorAll('.user-proyectos-cb:checked')).map(cb => cb.value);
+                            const prevActivo = prevRow.querySelector('.user-cc-activo').checked;
+
+                            await updateDoc(doc(db, "users", prevId), {
+                                nombres: prevName,
+                                rol: prevRole,
+                                empresaId: prevEmpresaId,
+                                proyectos: prevProjects,
+                                cajaChicaActivo: prevActivo
+                            });
+                        } catch (e) { console.error("Auto-save failed", e); }
+                    }
+                }
+
+                row.classList.add('is-editing');
                 row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = false);
                 row.querySelector('.user-nombres').classList.remove('read-only-input');
                 row.querySelector('.edit-mode-btns').style.display = 'none';
@@ -1975,8 +2004,13 @@
                         proyectos: selectedProjects,
                         cajaChicaActivo: isActivo
                     });
+
+                    row.classList.remove('is-editing');
+                    row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = true);
+                    row.querySelector('.user-nombres').classList.add('read-only-input');
+                    row.querySelector('.edit-mode-btns').style.display = 'flex';
+                    row.querySelector('.save-mode-btns').style.display = 'none';
                     alert('Perfil de usuario actualizado.');
-                    renderUsersTable();
                 } else if (action === 'save-pc') {
                     const newDescription = row.querySelector('.pc-description').value;
                     await updateDoc(doc(db, "partidasContables", row.dataset.id), { descripcion: newDescription });
