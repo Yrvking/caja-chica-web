@@ -1156,6 +1156,7 @@
                                 <thead>
                                     <tr>
                                         <th>Nombre</th>
+                                        <th>Acceso CC</th>
                                         <th>Email</th>
                                         <th>Empresa</th>
                                         <th>Rol</th>
@@ -1568,14 +1569,12 @@
 
                 row.innerHTML = `
                 <td>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input class="user-nombres read-only-input" value="${user.nombres || ''}" placeholder="Nombre" readonly style="width:120px;">
-                        <label style="font-size:11px; display:flex; align-items:center; gap:4px; white-space:nowrap;">
-                            <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled> Acceso CC
-                        </label>
-                    </div>
+                    <input class="user-nombres read-only-input" value="${user.nombres || ''}" placeholder="Nombre" readonly style="width:120px;">
                 </td>
-                <td><span class="user-email-display" style="font-size:11px; color:#555;">${user.email || ''}</span></td>
+                <td style="text-align:center;">
+                    <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled style="transform: scale(1.2);">
+                </td>
+                <td><input class="user-email read-only-input" value="${user.email || ''}" placeholder="Email" readonly style="width:160px; font-size:11px;"></td>
                 <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
                 <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
@@ -1958,6 +1957,7 @@
                         try {
                             const prevId = prevRow.dataset.id;
                             const prevName = prevRow.querySelector('.user-nombres').value.trim();
+                            const prevEmail = prevRow.querySelector('.user-email').value.trim();
                             const prevRole = prevRow.querySelector('.user-rol').value;
                             const prevEmpresaId = prevRow.querySelector('.user-empresa').value;
                             const prevProjects = Array.from(prevRow.querySelectorAll('.user-proyectos-cb:checked')).map(cb => cb.value);
@@ -1965,6 +1965,7 @@
 
                             await updateDoc(doc(db, "users", prevId), {
                                 nombres: prevName,
+                                email: prevEmail,
                                 rol: prevRole,
                                 empresaId: prevEmpresaId,
                                 proyectos: prevProjects,
@@ -1975,8 +1976,9 @@
                 }
 
                 row.classList.add('is-editing');
-                row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = false);
+                row.querySelectorAll('select, .user-nombres, .user-email, input[type="checkbox"]').forEach(input => input.disabled = false);
                 row.querySelector('.user-nombres').classList.remove('read-only-input');
+                row.querySelector('.user-email').classList.remove('read-only-input');
                 row.querySelector('.edit-mode-btns').style.display = 'none';
                 row.querySelector('.save-mode-btns').style.display = 'flex';
                 return;
@@ -1991,6 +1993,7 @@
                 if (action === 'save-user') {
                     const userId = row.dataset.id;
                     const newName = row.querySelector('.user-nombres').value.trim();
+                    const newEmail = row.querySelector('.user-email').value.trim();
                     const newRole = row.querySelector('.user-rol').value;
                     const newEmpresaId = row.querySelector('.user-empresa').value;
 
@@ -1999,6 +2002,7 @@
 
                     await updateDoc(doc(db, "users", userId), {
                         nombres: newName,
+                        email: newEmail,
                         rol: newRole,
                         empresaId: newEmpresaId,
                         proyectos: selectedProjects,
@@ -2006,8 +2010,9 @@
                     });
 
                     row.classList.remove('is-editing');
-                    row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = true);
+                    row.querySelectorAll('select, .user-nombres, .user-email, input[type="checkbox"]').forEach(input => input.disabled = true);
                     row.querySelector('.user-nombres').classList.add('read-only-input');
+                    row.querySelector('.user-email').classList.add('read-only-input');
                     row.querySelector('.edit-mode-btns').style.display = 'flex';
                     row.querySelector('.save-mode-btns').style.display = 'none';
                     alert('Perfil de usuario actualizado.');
