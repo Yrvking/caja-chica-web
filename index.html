@@ -839,8 +839,14 @@
                 <div id="company-info" class="cinfo"></div>
             </div>
             <div class="title-section">
-                <h2 id="caja-chica-title">SISTEMA DE CAJA CHICA WEB</h2>
-                <div id="caja-chica-status" style="display:none;"></div>
+                <h2 id="caja-chica-title" style="margin-bottom:0;">SISTEMA DE CAJA CHICA WEB</h2>
+                <div style="margin-top:6px; margin-bottom: 4px;">
+                    <select id="global-project-select"
+                        style="font-size:12px; padding:4px 8px; width:auto; display:inline-block; font-weight:600; color:var(--primary-dark); background:#e0f2fe; border:1px solid #bae6fd;">
+                        <option value="">-- Seleccione un Proyecto --</option>
+                    </select>
+                </div>
+                <div id="caja-chica-status" style="display:none;font-size:11px;"></div>
                 <div id="who" class="who" style="background: rgba(255,255,255,0.9); margin-top: 5px;">No autenticado
                 </div>
                 <button id="btn-logout" class="btn ghost small" style="display:none; margin-top: 8px;">Cerrar
@@ -868,7 +874,8 @@
                             <div class="meta-card-label">Monto Asignado / Inicial</div>
                         </div>
                         <div class="meta-card-content" style="flex-direction: column; align-items: stretch; gap: 8px;">
-                            <select id="obra-select" style="font-size: 11px; padding: 6px; margin-bottom: 4px;">
+                            <select id="obra-select"
+                                style="display:none; font-size: 11px; padding: 6px; margin-bottom: 4px;">
                                 <option value="">-- Seleccionar Obra --</option>
                             </select>
                             <div style="display:flex; align-items:center; gap: 8px;">
@@ -1208,6 +1215,17 @@
         let listeners = [];
         let sortField = 'createdAt', sortDir = 'desc';
         let extractionLogs = [];
+        let currentProjectId = '';
+        let activeProjectListener = null;
+        let activeExpensesListener = null;
+
+        const getActiveCajaId = () => {
+            if (!currentProjectId) {
+                alert("Por favor seleccione un proyecto activo en la parte superior.");
+                throw new Error("No hay proyecto activo seleccionado.");
+            }
+            return `${currentUserData.uid}_${currentProjectId}`;
+        };
 
         const el = (id) => document.getElementById(id);
         const toggleLoading = (show) => el('loading-overlay').style.display = show ? 'flex' : 'none';
@@ -1260,6 +1278,15 @@
                 areas = s.docs.map(d => ({ id: d.id, ...d.data() }));
                 renderObrasDropdowns();
                 if (isAdmin) renderObrasTable();
+
+                // Si no hay proyecto seleccionado, auto-seleccionar el primero
+                if (!currentProjectId) {
+                    const select = el('global-project-select');
+                    if (select && select.options.length > 1) {
+                        select.selectedIndex = 1;
+                        select.dispatchEvent(new Event('change'));
+                    }
+                }
             }));
 
             listeners.push(onSnapshot(query(collection(db, "cajasChicasHistorial"), orderBy("closedAt", "desc")), s => {
@@ -1275,27 +1302,57 @@
                 }));
             }
 
-            const pettyCashRef = doc(db, "cajasChicasActivas", currentUserData.uid);
-            listeners.push(onSnapshot(pettyCashRef, docSnap => {
+            // Configurar selector de proyecto global
+            el('global-project-select').addEventListener('change', (e) => {
+                currentProjectId = e.target.value;
+                el('obra-select').value = currentProjectId; // Mantener sync con el formulario oculto de inicio
+                listenToPettyCash(currentProjectId);
+            });
+        }
+
+        function listenToPettyCash(projectId) {
+            if (activeProjectListener) activeProjectListener();
+            if (activeExpensesListener) activeExpensesListener();
+            activeProjectListener = null;
+            activeExpensesListener = null;
+
+            if (!projectId) {
+                activePettyCash = null;
+                updateActiveBoxUI();
+                expenses = [];
+                renderExpensesTable();
+                return;
+            }
+
+            const cajaId = currentUserData.uid + '_' + projectId;
+            const pettyCashRef = doc(db, "cajasChicasActivas", cajaId);
+
+            activeProjectListener = onSnapshot(pettyCashRef, docSnap => {
                 activePettyCash = docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
                 updateActiveBoxUI();
 
                 if (activePettyCash) {
                     const expensesRef = collection(pettyCashRef, "expenses");
                     const q = query(expensesRef, orderBy("createdAt", "desc"));
-                    const unsubExpenses = onSnapshot(q, s => {
+                    if (activeExpensesListener) activeExpensesListener();
+                    activeExpensesListener = onSnapshot(q, s => {
                         expenses = s.docs.map(d => ({ id: d.id, ...d.data() }));
                         renderExpensesTable();
                     }, error => console.error("Error escuchando gastos:", error));
-                    listeners.push(unsubExpenses);
                 } else {
+                    if (activeExpensesListener) { activeExpensesListener(); activeExpensesListener = null; }
                     expenses = [];
                     renderExpensesTable();
                 }
-            }, error => console.error("Error escuchando caja chica activa:", error)));
+            }, error => console.error("Error escuchando caja chica activa:", error));
         }
 
-        function cleanupListeners() { listeners.forEach(unsub => unsub()); listeners = []; }
+        function cleanupListeners() {
+            listeners.forEach(unsub => unsub());
+            listeners = [];
+            if (activeProjectListener) { activeProjectListener(); activeProjectListener = null; }
+            if (activeExpensesListener) { activeExpensesListener(); activeExpensesListener = null; }
+        }
 
         function updateHeaderInfo() {
             if (!currentUserData?.empresaId || empresas.length === 0) return;
@@ -1471,6 +1528,7 @@
         function renderObrasDropdowns() {
             const obraSelect = el('obra-select');
             const filterObra = el('filter-obra');
+            const globalSelect = el('global-project-select');
 
             // Usar proyectos asignados al usuario; si no tiene, mostrar todas las áreas
             const proyectosAsignados = currentUserData?.proyectos || [];
@@ -1488,13 +1546,20 @@
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
-                obraSelect.innerHTML = '<option value="">-- Seleccionar Proyecto --</option>' + optionsHtml;
+                obraSelect.innerHTML = '<option value="">-- Seleccionar Obra --</option>' + optionsHtml;
                 obraSelect.value = currentVal;
             }
             if (filterObra) {
                 const currentVal = filterObra.value;
                 filterObra.innerHTML = '<option value="">Todos los Proyectos</option>' + optionsHtml;
                 filterObra.value = currentVal;
+            }
+            if (globalSelect) {
+                const currentVal = globalSelect.value;
+                globalSelect.innerHTML = '<option value="">-- Seleccione un Proyecto --</option>' + optionsHtml;
+                if (currentVal && areasFiltradas.some(a => a.id === currentVal)) {
+                    globalSelect.value = currentVal;
+                }
             }
         }
 
@@ -1748,8 +1813,9 @@
             toggleLoading(true);
             try {
                 const batch = writeBatch(db);
+                const cajaId = getActiveCajaId();
                 expenses.forEach(exp => {
-                    const docRef = doc(db, 'cajasChicasActivas', currentUserData.uid, 'expenses', exp.id);
+                    const docRef = doc(db, 'cajasChicasActivas', cajaId, 'expenses', exp.id);
                     batch.delete(docRef);
                     // Si hay archivo adjuunto, tal vez borrar el de storage sería ideal, pero dejaremos eso para cleanup tasks (complejidad).
                 });
@@ -1935,7 +2001,8 @@
                         return `CCH-${String(newCount).padStart(4, '0')}`;
                     });
 
-                    await setDoc(doc(db, "cajasChicasActivas", currentUserData.uid), {
+                    const cajaId = getActiveCajaId();
+                    await setDoc(doc(db, "cajasChicasActivas", cajaId), {
                         initialAmount: amount,
                         cajaNumero: newCajaNumero,
                         obraId: obraId,
@@ -1977,7 +2044,8 @@
                     if (confirm(`¿Actualizar el monto inicial a S/ ${newAmount.toFixed(2)}?`)) {
                         toggleLoading(true);
                         try {
-                            await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid), {
+                            const cajaId = getActiveCajaId();
+                            await updateDoc(doc(db, "cajasChicasActivas", cajaId), {
                                 initialAmount: newAmount
                             });
                             // La UI se actualizará sola por el onSnapshot
@@ -2005,12 +2073,13 @@
                 const expenseId = row.dataset.id;
                 toggleLoading(true);
                 try {
+                    const cajaId = getActiveCajaId();
                     const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-                    const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
+                    const fileRef = ref(storage, `caja_chica_comprobantes/${cajaId}/${fileName}`);
                     const snapshot = await uploadBytes(fileRef, file);
                     const fileUrl = await getDownloadURL(snapshot.ref);
 
-                    await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", expenseId), { fileUrl });
+                    await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), { fileUrl });
                     alert("Archivo adjuntado correctamente.");
                 } catch (error) {
                     console.error("Error al subir archivo:", error);
@@ -2065,7 +2134,8 @@
                 }
 
                 try {
-                    await updateDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", expenseId), updateData);
+                    const cajaId = getActiveCajaId();
+                    await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), updateData);
                 } catch (error) { console.error("Error al actualizar gasto:", error); }
             }
         });
@@ -2075,7 +2145,8 @@
                 const row = e.target.closest('tr');
                 if (confirm('¿Eliminar este gasto?')) {
                     toggleLoading(true);
-                    await deleteDoc(doc(db, "cajasChicasActivas", currentUserData.uid, "expenses", row.dataset.id));
+                    const cajaId = getActiveCajaId();
+                    await deleteDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", row.dataset.id));
                     toggleLoading(false);
                 }
             }
@@ -2085,7 +2156,8 @@
             if (!activePettyCash) return;
             toggleLoading(true);
             try {
-                await addDoc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"), {
+                const cajaId = getActiveCajaId();
+                await addDoc(collection(db, "cajasChicasActivas", cajaId, "expenses"), {
                     date: serverTimestamp(), type: 'OTRO', seriesNumber: '', ruc: '', name: '', pc: '',
                     description: '', subtotal: 0, igv: 0, total: 0, createdAt: serverTimestamp()
                 });
@@ -2114,7 +2186,8 @@
                     const newExpenseRef = doc(collection(historyRef, "expenses"), exp.id);
                     batch.set(newExpenseRef, exp);
                 });
-                const oldPettyCashRef = doc(db, "cajasChicasActivas", currentUserData.uid);
+                const cajaId = getActiveCajaId();
+                const oldPettyCashRef = doc(db, "cajasChicasActivas", cajaId);
                 batch.delete(oldPettyCashRef);
                 await batch.commit();
                 alert(`Caja ${activePettyCash.cajaNumero} cerrada y enviada al historial.`);
@@ -2274,7 +2347,8 @@
                             pc: autoPc,
                             createdAt: serverTimestamp()
                         };
-                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", currentUserData.uid, "expenses"));
+                        const cajaId = getActiveCajaId();
+                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", cajaId, "expenses"));
                         batch.set(newExpenseRef, expenseData);
 
                         // Añadir localmente para prevenir duplicados en lote paralelo
@@ -2605,16 +2679,17 @@
                             createdAt: serverTimestamp()
                         };
 
+                        const cajaId = getActiveCajaId();
                         try {
                             const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-                            const fileRef = ref(storage, `caja_chica_comprobantes/${currentUserData.uid}/${fileName}`);
+                            const fileRef = ref(storage, `caja_chica_comprobantes/${cajaId}/${fileName}`);
                             const snapshot = await uploadBytes(fileRef, file);
                             expenseData.fileUrl = await getDownloadURL(snapshot.ref);
                         } catch (uploadErr) {
                             console.error('Error subiendo PDF a Storage:', uploadErr);
                         }
 
-                        const newExpenseRef = doc(collection(db, 'cajasChicasActivas', currentUserData.uid, 'expenses'));
+                        const newExpenseRef = doc(collection(db, 'cajasChicasActivas', cajaId, 'expenses'));
                         batch.set(newExpenseRef, expenseData);
 
                         // Añadir localmente para prevenir duplicados en lote paralelo
