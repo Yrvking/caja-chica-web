@@ -1797,6 +1797,10 @@
                 sumGastado += total;
                 sumSaldo += saldo;
 
+                const btnEliminarHtml = (currentUserData && currentUserData.rol === 'ADMIN') ?
+                    `<button class="btn danger btn-sm icon-btn" data-action="delete-box" data-id="${box.id}" title="Eliminar definitivamente" style="padding:3px 6px; font-size:11px; margin-left:4px;">🗑️ Eliminar</button>`
+                    : '';
+
                 tr.innerHTML = `
                     <td>${box.cajaNumero || 'S/N'}</td>
                     <td>${closeDate}</td>
@@ -1808,6 +1812,7 @@
                     <td><span style="font-size:10px; padding:4px 8px; border-radius:12px; background:var(--danger-bg); color:var(--danger-text)">${box.status}</span></td>
                     <td>
                         <button class="btn primary btn-sm icon-btn" data-action="export-excel" data-id="${box.id}" title="Exportar a Excel LITORAL" style="padding:3px 6px; font-size:11px;">📊 Excel</button>
+                        ${btnEliminarHtml}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -1858,8 +1863,12 @@
                         const total = box.totalGastado || 0;
                         const saldo = initial - total;
 
+                        const btnEliminarHtml = (currentUserData && currentUserData.rol === 'ADMIN') ?
+                            `<button class="btn danger btn-sm action-delete" data-id="${box.id}" style="font-size:11px; padding:3px 6px; margin-left:4px;">🗑️ Eliminar</button>`
+                            : '';
+
                         tr.innerHTML = `
-                    <td>${box.cajaNumero || 'S/N'}</td>
+                            <td>${box.cajaNumero || 'S/N'}</td>
                             <td>${sendDate}</td>
                             <td>${box.obraNombre || 'General'}</td>
                             <td>${box.ownerName || box.ownerId}</td>
@@ -1867,10 +1876,12 @@
                             <td>S/ ${total.toFixed(2)}</td>
                             <td style="color:${saldo >= 0 ? 'var(--success-text)' : 'var(--danger-text)'}">S/ ${saldo.toFixed(2)}</td>
                             <td>
+                                <button class="btn primary btn-sm icon-btn action-excel" data-id="${box.id}" style="font-size:11px; padding:3px 6px; margin-right:4px;">📊 Excel</button>
                                 <button class="btn primary btn-sm action-approve" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Cerrar VB</button>
                                 <button class="btn danger btn-sm action-reject" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Rechazar</button>
+                                ${btnEliminarHtml}
                             </td>
-                `;
+                        `;
                         tbody.appendChild(tr);
                     });
                 }
@@ -1880,10 +1891,44 @@
                 toggleLoading(false);
             }
         }
+        });
 
+        el('history-table-body')?.addEventListener('click', async (e) => {
+            const btnExcel = e.target.closest('[data-action="export-excel"]');
+            const btnDelete = e.target.closest('[data-action="delete-box"]');
+
+            if (btnExcel) {
+                const boxId = btnExcel.dataset.id;
+                await exportPettyCashExcel(boxId, 'historial');
+            } else if (btnDelete) {
+                const boxId = btnDelete.dataset.id;
+                if (confirm("⚠️ PELIGRO: ¿Está seguro de ELIMINAR por completo esta caja chica del historial? Esta acción no se puede deshacer.")) {
+                    toggleLoading(true);
+                    try {
+                        const qExp = query(collection(db, "cajasChicasHistorial", boxId, "expenses"));
+                        const expSnap = await getDocs(qExp);
+                        const batch = writeBatch(db);
+                        expSnap.forEach(d => batch.delete(d.ref));
+                        batch.delete(doc(db, "cajasChicasHistorial", boxId));
+                        await batch.commit();
+                        alert("Caja eliminada del historial.");
+                        // Solo la UI reactiva la data onSnapshot, el historial requiere reload por ahora o borrar array
+                        historyBoxes = historyBoxes.filter(b => b.id !== boxId);
+                        renderHistoryView();
+                    } catch (err) {
+                        alert("Error al eliminar: " + err.message);
+                    }
+                    toggleLoading(false);
+                }
+            }
+        });
+
+        // Event listener delegado para la tabla de revisión
         el('revision-table-body')?.addEventListener('click', async (e) => {
             const btnApprove = e.target.closest('.action-approve');
             const btnReject = e.target.closest('.action-reject');
+            const btnExcel = e.target.closest('.action-excel');
+            const btnDelete = e.target.closest('.action-delete');
 
             if (btnApprove) {
                 const boxId = btnApprove.dataset.id;
@@ -1908,8 +1953,113 @@
                         toggleLoading(false);
                     }
                 }
+            } else if (btnExcel) {
+                const boxId = btnExcel.dataset.id;
+                await exportPettyCashExcel(boxId, 'activa');
+            } else if (btnDelete) {
+                const boxId = btnDelete.dataset.id;
+                if (confirm("⚠️ PELIGRO: ¿Está seguro de ELIMINAR por completo esta caja chica que está en revisión? Esta acción anulará y borrará todos los gastos vinculados.")) {
+                    toggleLoading(true);
+                    try {
+                        const qExp = query(collection(db, "cajasChicasActivas", boxId, "expenses"));
+                        const expSnap = await getDocs(qExp);
+                        const batch = writeBatch(db);
+                        expSnap.forEach(d => batch.delete(d.ref));
+                        batch.delete(doc(db, "cajasChicasActivas", boxId));
+                        await batch.commit();
+                        alert("Caja eliminada definitivamente.");
+                        loadPendingReviews();
+                    } catch (err) {
+                        alert("Error al eliminar: " + err.message);
+                    }
+                    toggleLoading(false);
+                }
             }
         });
+
+        // --- SISTEMA DE EXPORTACIÓN EXCEL ---
+        async function exportPettyCashExcel(boxId, collectionName) {
+            if (typeof ExcelJS === 'undefined') {
+                return alert("La librería de Excel no se pudo cargar. Refresca la página.");
+            }
+            toggleLoading(true);
+            try {
+                const collPath = collectionName === 'historial' ? 'cajasChicasHistorial' : 'cajasChicasActivas';
+                const boxSnap = await getDoc(doc(db, collPath, boxId));
+                if (!boxSnap.exists()) throw new Error("La caja ya no existe.");
+                const boxD = boxSnap.data();
+
+                const qExp = query(collection(db, collPath, boxId, "expenses"), orderBy("date", "asc"));
+                const expSnap = await getDocs(qExp);
+                const expList = expSnap.docs.map(d => d.data());
+
+                // Crear Libro
+                const workbook = new ExcelJS.Workbook();
+                workbook.creator = 'Caja Chica Web v2';
+                const sheet = workbook.addWorksheet('Rendición Caja Chica');
+
+                // Cabeceras genéricas tipo Plantilla (se pueden expandir luego según LITORAL v3.0)
+                sheet.columns = [
+                    { header: 'FECHA', key: 'fecha', width: 12 },
+                    { header: 'TIPO COMPR.', key: 'tipo', width: 15 },
+                    { header: 'N° COMPR.', key: 'num', width: 18 },
+                    { header: 'RUC', key: 'ruc', width: 15 },
+                    { header: 'RAZÓN SOCIAL', key: 'razon', width: 35 },
+                    { header: 'PARTIDA CONTROL', key: 'pc', width: 15 },
+                    { header: 'DESCRIPCIÓN GASTO', key: 'desc', width: 45 },
+                    { header: 'SUBTOTAL', key: 'sub', width: 12 },
+                    { header: 'IGV', key: 'igv', width: 12 },
+                    { header: 'TOTAL', key: 'total', width: 12 }
+                ];
+
+                sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2744' } };
+
+                expList.forEach(e => {
+                    const row = sheet.addRow({
+                        fecha: e.date instanceof Date ? e.date.toLocaleDateString() : (e.date ? e.date.substring(0, 10) : ''),
+                        tipo: e.type || '',
+                        num: e.seriesNumber || '',
+                        ruc: e.ruc || '',
+                        razon: e.name || '',
+                        pc: e.pc || '',
+                        desc: e.description || '',
+                        sub: e.subtotal || 0,
+                        igv: e.igv || 0,
+                        total: e.total || 0
+                    });
+                    row.getCell('sub').numFmt = '#,##0.00';
+                    row.getCell('igv').numFmt = '#,##0.00';
+                    row.getCell('total').numFmt = '#,##0.00';
+                });
+
+                // Fila de Totales
+                const lastRow = sheet.addRow(['', '', '', '', '', '', 'TOTALES:',
+                    expList.reduce((s, x) => parseFloat(s) + (Number(x.subtotal) || 0), 0),
+                    expList.reduce((s, x) => parseFloat(s) + (Number(x.igv) || 0), 0),
+                    expList.reduce((s, x) => parseFloat(s) + (Number(x.total) || 0), 0)
+                ]);
+                lastRow.font = { bold: true };
+                lastRow.getCell(8).numFmt = '#,##0.00';
+                lastRow.getCell(9).numFmt = '#,##0.00';
+                lastRow.getCell(10).numFmt = '#,##0.00';
+
+                // Exportar
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/octet-stream' });
+                const boxNumber = (boxD.cajaNumero || 'Sin_Numero').trim().replace(/\s+/g, '_');
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `RENDICION_${boxNumber}_LITORAL.xlsx`;
+                link.click();
+
+            } catch (e) {
+                console.error("EXCEL Export Error:", e);
+                alert("Error al exportar: " + e.message);
+            } finally {
+                toggleLoading(false);
+            }
+        }
 
         async function approveAndCloseBox(boxId) {
             toggleLoading(true);
