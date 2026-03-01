@@ -1540,20 +1540,19 @@
                 const expenseDate = expense.date?.seconds ? new Date(expense.date.seconds * 1000).toISOString().split('T')[0]
                     : (expense.date instanceof Date ? expense.date.toISOString().split('T')[0] : '');
 
-                row.innerHTML = `
                 const isActiva = !activePettyCash || activePettyCash.status === 'ACTIVA' || !activePettyCash.status;
                 const dis = isActiva ? '' : 'disabled';
                 
                 row.innerHTML = `
-                    < td title = "${expenseDate}" ><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
-                <td><select data-field="type" title="${esc(expense.type)}" ${dis}>
-                    <option value="BOLETA"         ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
-                    <option value="FACTURA"        ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
-                    <option value="RXH"            ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
-                    <option value="NOTA DE CREDITO"${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>N.Cred</option>
-                    <option value="MOVILIDAD"      ${expense.type === 'MOVILIDAD' ? '                    M ovil.</o p tion>
-                     <option value="OTRO"           ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
-                </select></td>
+                    <td title="${expenseDate}"><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
+                    <td><select data-field="type" title="${esc(expense.type)}" ${dis}>
+                        <option value="BOLETA" ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
+                        <option value="FACTURA" ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
+                        <option value="RXH" ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
+                        <option value="NOTA DE CREDITO" ${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>N.Cred</option>
+                        <option value="MOVILIDAD" ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movilidad</option>
+                        <option value="OTRO" ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
+                    </select></td>
                 <td title="${esc(expense.seriesNumber)}"><input type="text" data-field="seriesNumber" value="${esc(expense.seriesNumber)}" placeholder="Serie" ${dis}></td>
                 <td title="${esc(expense.ruc)}"><input type="text" data-field="ruc" value="${esc(expense.ruc)}" placeholder="RUC" maxlength="11" ${dis}></td>
                 <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social" ${dis}></td>
