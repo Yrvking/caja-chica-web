@@ -1830,7 +1830,7 @@
             try {
                 // Consultamos las cajas enviadas a revisión ('EN REVISION')
                 const q = query(collection(db, "cajasChicasActivas"));
-                const querySnapshot = await import("https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js").then(module => module.getDocs(q));
+                const querySnapshot = await getDocs(q);
 
                 let pendingBoxes = [];
                 querySnapshot.forEach(docSnap => {
@@ -1912,8 +1912,6 @@
             try {
                 // Para mantener la lógica del modal de firmas también para el residente, deberíamos levantar el modal aquí
                 // Pero para simplicidad de cierre V1 lo pasaremos directo
-                const { getDocs } = await import("https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js");
-
                 const pettyCashRef = doc(db, "cajasChicasActivas", boxId);
                 const pettyCashSnap = await getDoc(pettyCashRef);
                 if (!pettyCashSnap.exists()) throw new Error("Caja no encontrada");
@@ -2819,55 +2817,62 @@
                     const ruc = allRucs[0] || '';
 
                     // ── RAZÓN SOCIAL del EMISOR ─────────────────────────────────────
-                    // SUNAT: el emisor (proveedor) aparece en el HEADER del PDF (primeras líneas)
-                    // El receptor (nuestro cliente) aparece en la MITAD marcado con etiquetas
+                    // ESTRATEGIA: buscar LÍNEA POR LÍNEA (nunca join) para no cruzar bordes
+                    // Un join(' ') une "SISTEMA 10 S.A.C." con "AV. SAN BORJA..." → regex falla
                     let razonSocial = '';
-                    if (ruc) {
-                        // Labels que indican datos del RECEPTOR/CLIENTE — ignorar esas líneas
-                        const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|datos\s+del|a:|para:)/i;
-                        const legalSuffix = /(?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|CIA\.?|S\.?A\.S?\.?|LTDA?\.?|S\.?A\b)/;
-                        const rsRE = new RegExp('([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ \\s&\\.,\'\\-]{2,60}' + legalSuffix.source + ')', 'i');
+                    {
+                        const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|datos\s+del|\ba\s*:|\bpara\b)/i;
+                        // Patrón de dirección → fin del nombre de empresa
+                        const direccionRE = /^\s*(?:AV\.|JR\.|CAL\.|PJE\.|URB\.|MZ\.|LT\.|INT\.|NRO\.|C\.C\.|LIMA|SAN\s|LOS\s|LAS\s)/i;
+                        const docTypeLine = /^(?:FACTURA|BOLETA|RECIBO|NOTA\s+DE|LIQUIDACI|RUC[:\s\.]|FECHA|SERIE|N[°º]|EMITIDO|DIRECCI|IMPORTE|TOTAL|ITEM|BIEN)/i;
+                        // Sufijo legal que termina el nombre de empresa
+                        const LEGAL_RE = /((?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|S\.A\b)[.,]?)/i;
 
-                        // Estrategia 1: buscar en primeras 20 líneas (zona del emisor)
-                        const topLines = lines.slice(0, Math.min(22, lines.length))
-                            .filter(l => !clienteRE.test(l) && !l.includes(ruc));
-                        const topText = topLines.join(' ');
-                        const m1 = topText.match(rsRE);
-                        if (m1) {
-                            // Limpiar texto de tipo de comprobante que se pega al nombre
-                            razonSocial = m1[1].trim()
-                                .replace(/\s+FACTURA\s+ELECTR[OÓ]NICA.*/i, '')
-                                .replace(/\s+BOLETA\s+ELECTR[OÓ]NICA.*/i, '')
-                                .replace(/\s+RECIBO\s+POR\s+HONORARIO.*/i, '')
-                                .replace(/\s+NOTA\s+DE\s+CR[EÉ]DITO.*/i, '')
-                                .trim();
-                        }
+                        // Extraer nombre hasta el primer sufijo legal (cortar lo que venga después)
+                        const extractUntilLegal = (line) => {
+                            const m = line.match(/(^[\w\s&.,'-]{2,60}?)(S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|\bS\.A\b)/i);
+                            if (m) {
+                                return (m[1] + m[2]).replace(/\.\s*$/,'').trim();
+                            }
+                            return line.replace(/\s+FACTURA\s+ELECTR.*/i, '')
+                                       .replace(/\s+BOLETA\s+ELECTR.*/i, '')
+                                       .replace(/\s+RECIBO\s+POR.*/i, '')
+                                       .replace(/\s+AV\.\s.*/i, '')
+                                       .replace(/\s+JR\.\s.*/i, '').trim();
+                        };
 
-                        // Estrategia 2: buscar SOLO ANTES del RUC (no después = receptor)
-                        if (!razonSocial) {
-                            const rucLineIdx = lines.findIndex(l => l.includes(ruc));
-                            const beforeRuc = lines.slice(Math.max(0, rucLineIdx - 6), rucLineIdx + 1)
-                                .filter(l => !clienteRE.test(l))
-                                .join(' ');
-                            const m2 = beforeRuc.match(rsRE);
-                            if (m2) razonSocial = m2[1].trim();
+                        // Buscar línea por línea en las primeras 30
+                        for (let idx = 0; idx < Math.min(lines.length, 30); idx++) {
+                            const raw = lines[idx].trim();
+                            if (raw.length < 3) continue;
+                            if (/^[\d\s\/:.,()%-]+$/.test(raw)) continue;  // solo números
+                            if (raw.includes(ruc)) continue;
+                            if (docTypeLine.test(raw)) continue;
+                            if (clienteRE.test(raw)) break;  // llegamos al receptor
+                            if (direccionRE.test(raw)) continue;  // es dirección, saltar
 
-                            // Estrategia 3: primera línea en mayúsculas sin el RUC ni labels de tipo doc
-                            if (!razonSocial) {
-                                const docLabels = /^(?:RUC|FACTURA|BOLETA|RECIBO|BIEN|FECHA|EMITIDO|NOTA|LIQUIDACION)/i;
-                                const candidate = lines.slice(0, 18).find(l =>
-                                    !l.includes(ruc) && !clienteRE.test(l) && !docLabels.test(l)
-                                    && l.trim().length > 4 && l.trim() === l.trim().toUpperCase()
-                                    && /[A-Z]{3,}/.test(l)
-                                );
-                                if (candidate) razonSocial = candidate.trim();
+                            // Si la línea contiene un sufijo legal → extraer nombre hasta ahí
+                            if (LEGAL_RE.test(raw)) {
+                                const candidate = extractUntilLegal(raw);
+                                if (candidate.length >= 3) {
+                                    razonSocial = candidate;
+                                    break;
+                                }
                             }
                         }
 
-                        // Estrategia 4: patrón "R.U.C. XXXXXXXXX → siguiente línea = nombre"
+                        // Fallback: primera línea con texto significativo (MAYUSCULAS, sin números puros)
                         if (!razonSocial) {
-                            const m4 = fullText.match(/R\.?U\.?C\.?\s*[N°\s]*(?:20|10)\d{9}\s+([^\n]{4,60})/i);
-                            if (m4 && !clienteRE.test(m4[1])) razonSocial = m4[1].trim();
+                            const docLabels = /^(?:RUC|FACTURA|BOLETA|RECIBO|BIEN|FECHA|EMITIDO|NOTA|LIQUIDACION|IMPORTE|TOTAL|SON:|N°)/i;
+                            const candidate = lines.slice(0, 20).find(l =>
+                                l.trim().length > 4
+                                && !l.includes(ruc)
+                                && !clienteRE.test(l)
+                                && !docLabels.test(l)
+                                && !direccionRE.test(l)
+                                && /[A-Za-zÁÉÍÓÚÑ]{3,}/.test(l)
+                            );
+                            if (candidate) razonSocial = extractUntilLegal(candidate.trim());
                         }
                     }
 
@@ -2912,6 +2917,26 @@
                             ? new Date(`${p1}-${p2}-${p3}T12:00:00Z`)
                             : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
                         if (isNaN(date.getTime())) date = new Date();
+                    }
+
+                    // ── MONEDA del comprobante ─────────────────────────────────────
+                    // Detectar moneda ANTES de buscar montos para saber el símbolo a usar
+                    let monedaPDF = 'PEN'; // default soles
+                    {
+                        const fU = fullText.toUpperCase();
+                        // Campo explícito "Moneda: $" o "Moneda: USD" en el PDF
+                        const monMatch = fullText.match(/Moneda[:\s]+([\$S\/USD]{1,3})/i);
+                        if (monMatch) {
+                            const sym = monMatch[1].trim();
+                            if (sym === '$' || sym.toUpperCase() === 'USD' || sym === 'US$') monedaPDF = 'USD';
+                            else if (sym === 'S/' || sym === 'S/.' || sym.toUpperCase() === 'PEN') monedaPDF = 'PEN';
+                        } else {
+                            // Detectar por texto libre: "DÓLARES AMERICANOS", "DOLARES", currenct $
+                            if (fU.includes('DÓLAR') || fU.includes('DOLAR') || fU.includes('USD')
+                                || fU.includes('CUATROCIENTOS') && fU.includes('DÓLARES')) {
+                                monedaPDF = 'USD';
+                            }
+                        }
                     }
 
                     // ── MONTOS — acepta S/ (soles) y $ (dólares) ────────────────
