@@ -546,6 +546,7 @@
 
         .data-table {
             width: 100%;
+            min-width: 1300px; /* Forzar overflow para que aparezca scroll horizontal */
             border-collapse: collapse;
             white-space: nowrap;
             font-size: 11px;
@@ -1284,7 +1285,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, runTransaction, writeBatch } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js";
 
         const firebaseConfig = {
@@ -1547,8 +1548,12 @@
                     : (expense.date instanceof Date ? expense.date.toISOString().split('T')[0] : '');
 
                 row.innerHTML = `
-                <td title="${expenseDate}"><input type="date" data-field="date" value="${expenseDate}"></td>
-                <td><select data-field="type" title="${esc(expense.type)}">
+                const isActiva = !activePettyCash || activePettyCash.status === 'ACTIVA' || !activePettyCash.status;
+                const dis = isActiva ? '' : 'disabled';
+                
+                row.innerHTML = `
+                <td title="${expenseDate}"><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
+                <td><select data-field="type" title="${esc(expense.type)}" ${dis}>
                     <option value="BOLETA"         ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
                     <option value="FACTURA"        ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
                     <option value="RXH"            ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
@@ -1556,26 +1561,26 @@
                     <option value="MOVILIDAD"      ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movil.</option>
                     <option value="OTRO"           ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
                 </select></td>
-                <td title="${esc(expense.seriesNumber)}"><input type="text" data-field="seriesNumber" value="${esc(expense.seriesNumber)}" placeholder="Serie"></td>
-                <td title="${esc(expense.ruc)}"><input type="text" data-field="ruc" value="${esc(expense.ruc)}" placeholder="RUC" maxlength="11"></td>
-                <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social"></td>
-                <td title="${esc(expense.pc)}"><select data-field="pc" style="font-size:10px;"><option value="">PC...</option>${pcOptions}</select></td>
-                <td title="${esc(expense.description)}"><input type="text" data-field="description" value="${esc(expense.description)}" placeholder="Descripción"></td>
-                <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}" style="text-align:right;"></td>
+                <td title="${esc(expense.seriesNumber)}"><input type="text" data-field="seriesNumber" value="${esc(expense.seriesNumber)}" placeholder="Serie" ${dis}></td>
+                <td title="${esc(expense.ruc)}"><input type="text" data-field="ruc" value="${esc(expense.ruc)}" placeholder="RUC" maxlength="11" ${dis}></td>
+                <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social" ${dis}></td>
+                <td title="${esc(expense.pc)}"><select data-field="pc" style="font-size:10px;" ${dis}><option value="">PC...</option>${pcOptions}</select></td>
+                <td title="${esc(expense.description)}"><input type="text" data-field="description" value="${esc(expense.description)}" placeholder="Descripción" ${dis}></td>
+                <td><input type="number" data-field="subtotal" value="${(expense.subtotal || 0).toFixed(2)}" style="text-align:right;" ${dis}></td>
                 <td><input type="number" data-field="igv"      value="${(expense.igv || 0).toFixed(2)}"      style="text-align:right; color:var(--text-muted);" disabled></td>
-                <td><input type="number" data-field="total"    value="${(expense.total || 0).toFixed(2)}"    style="text-align:right; font-weight:600;"></td>
-                <td><select data-field="moneda" style="width:60px; font-size:11px;">
+                <td><input type="number" data-field="total"    value="${(expense.total || 0).toFixed(2)}"    style="text-align:right; font-weight:600;" ${dis}></td>
+                <td><select data-field="moneda" style="width:60px; font-size:11px;" ${dis}>
                     <option value="PEN" ${(expense.moneda || 'PEN') === 'PEN' ? 'selected' : ''}>S/</option>
                     <option value="USD" ${expense.moneda === 'USD' ? 'selected' : ''}>USD</option>
                     <option value="EUR" ${expense.moneda === 'EUR' ? 'selected' : ''}>EUR</option>
                 </select></td>
-                <td title="${esc(expense.observacion)}"><input type="text" data-field="observacion" value="${esc(expense.observacion)}" placeholder="Opcional..."></td>
+                <td title="${esc(expense.observacion)}"><input type="text" data-field="observacion" value="${esc(expense.observacion)}" placeholder="Opcional..." ${dis}></td>
                 <td style="padding:2px 3px; white-space:nowrap;">
                     <div style="display:flex; align-items:center; gap:2px; justify-content:center;">
                         ${expense.fileUrl ? `<a href="${expense.fileUrl}" target="_blank" title="Ver comprobante" style="font-size:13px; line-height:1;">📄</a>` : ''}
-                        <label for="file-${expense.id}" style="cursor:pointer; font-size:13px; line-height:1; margin:0;" title="Adjuntar comprobante">📎</label>
+                        ${isActiva ? `<label for="file-${expense.id}" style="cursor:pointer; font-size:13px; line-height:1; margin:0;" title="Adjuntar comprobante">📎</label>
                         <input type="file" id="file-${expense.id}" style="display:none" data-action="upload-expense-file">
-                        <button class="btn danger btn-sm icon-btn" data-action="delete-expense" style="padding:1px 4px; font-size:11px; line-height:1.2;">🗑️</button>
+                        <button class="btn danger btn-sm icon-btn" data-action="delete-expense" style="padding:1px 4px; font-size:11px; line-height:1.2;">🗑️</button>` : ''}
                     </div>
                 </td>`;
 
@@ -1964,9 +1969,12 @@
             const obraInfo = el('caja-chica-obra-info');
 
             if (activePettyCash) {
+                const status = activePettyCash.status || 'ACTIVA';
+                const isActiva = status === 'ACTIVA';
+                
                 el('caja-chica-number').textContent = `Caja N° ${activePettyCash.cajaNumero}`;
-                el('caja-chica-status').textContent = 'Estado: ACTIVA';
-                el('caja-chica-status').style.color = 'var(--ok)';
+                el('caja-chica-status').textContent = `Estado: ${status}`;
+                el('caja-chica-status').style.color = isActiva ? 'var(--ok)' : (status === 'EN REVISION' ? '#eab308' : 'var(--muted)');
                 if (obraInfo) obraInfo.textContent = activePettyCash.obraNombre ? `Obra: ${activePettyCash.obraNombre}` : '';
 
                 initialAmountInput.value = (activePettyCash.initialAmount || 0).toFixed(2);
@@ -1978,11 +1986,11 @@
                 }
                 saveInitialAmountBtn.style.display = 'none';
                 const editBtn = el('edit-initial-amount-btn');
-                if (editBtn) editBtn.style.display = 'inline-flex';
-                el('add-manual-btn').disabled = false;
-                el('xml-btn').disabled = false;
-                if (el('pdf-btn')) el('pdf-btn').disabled = false;
-                el('btn-close-box').disabled = false;
+                if (editBtn) editBtn.style.display = isActiva ? 'inline-flex' : 'none';
+                el('add-manual-btn').disabled = !isActiva;
+                el('xml-btn').disabled = !isActiva;
+                if (el('pdf-btn')) el('pdf-btn').disabled = !isActiva;
+                el('btn-close-box').disabled = !isActiva;
             } else {
                 el('caja-chica-number').textContent = 'No hay caja chica activa';
                 el('caja-chica-status').textContent = 'Estado: CERRADA';
@@ -2829,7 +2837,8 @@
                     // Un join(' ') une "SISTEMA 10 S.A.C." con "AV. SAN BORJA..." → regex falla
                     let razonSocial = '';
                     {
-                        const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|datos\s+del|\ba\s*:|\bpara\b)/i;
+                        // 'adquiriente' es la empresa RECEPTORA/CLIENTE — ignorar esas líneas
+                        const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|adquiriente|datos\s+del|\ba\s*:|\bpara\b)/i;
                         // Patrón de dirección → fin del nombre de empresa
                         const direccionRE = /^\s*(?:AV\.|JR\.|CAL\.|PJE\.|URB\.|MZ\.|LT\.|INT\.|NRO\.|C\.C\.|LIMA|SAN\s|LOS\s|LAS\s)/i;
                         const docTypeLine = /^(?:FACTURA|BOLETA|RECIBO|NOTA\s+DE|LIQUIDACI|RUC[:\s\.]|FECHA|SERIE|N[°º]|EMITIDO|DIRECCI|IMPORTE|TOTAL|ITEM|BIEN)/i;
@@ -2854,10 +2863,23 @@
                             const raw = lines[idx].trim();
                             if (raw.length < 3) continue;
                             if (/^[\d\s\/:.,()%-]+$/.test(raw)) continue;  // solo números
-                            if (raw.includes(ruc)) continue;
                             if (docTypeLine.test(raw)) continue;
                             if (clienteRE.test(raw)) break;  // llegamos al receptor
                             if (direccionRE.test(raw)) continue;  // es dirección, saltar
+
+                            // Si la línea contiene el RUC del emisor, extraer texto ANTES del RUC
+                            let lineToCheck = raw;
+                            if (ruc && raw.includes(ruc)) {
+                                const beforeRucText = raw.split(ruc)[0].trim();
+                                // Limpiar 'RUC N°' u otras etiquetas previas
+                                const cleanedBefore = beforeRucText.replace(/\bRUC\b\s*N?°?\s*$/i, '').trim();
+                                if (cleanedBefore.length >= 3 && /[A-Za-záéíóúÁÉÍÓÚñÑ]{3,}/.test(cleanedBefore)) {
+                                    razonSocial = extractUntilLegal(cleanedBefore);
+                                    break;
+                                } else {
+                                    continue; // solo el RUC, saltar
+                                }
+                            }
 
                             // Si la línea contiene un sufijo legal → extraer nombre hasta ahí
                             if (LEGAL_RE.test(raw)) {
@@ -2902,14 +2924,16 @@
                     const fText = fullText.toUpperCase();
                     let type = 'FACTURA'; // default
                     // REGLA: El tipo se determina por el TEXTO del encabezado del PDF
-                    // E001 puede ser RxH O Factura electronica - el prefijo NO es el discriminador
-                    if (fText.includes('RECIBO POR HONORARIO')) {
+                    // Normalizamos los espacios porque a veces dice "FACTURA\nELECTRÓNICA"
+                    const cleanTextForType = fText.replace(/\s+/g, ' '); 
+                    
+                    if (cleanTextForType.includes('RECIBO POR HONORARIO')) {
                         type = 'RXH'; // RxH no tiene IGV
-                    } else if (fText.includes('NOTA DE CR')) {
+                    } else if (cleanTextForType.includes('NOTA DE CR')) {
                         type = 'NOTA DE CREDITO';
-                    } else if (fText.includes('BOLETA DE VENTA') || fText.includes('BOLETA ELECTR')) {
+                    } else if (cleanTextForType.includes('BOLETA DE VENTA') || cleanTextForType.includes('BOLETA ELECTR')) {
                         type = 'BOLETA';
-                    } else if (fText.includes('FACTURA ELECTR') || fText.includes('FACTURA DE VENTA') || fText.includes('FACTURA COMERCIAL')) {
+                    } else if (cleanTextForType.includes('FACTURA ELECTR') || cleanTextForType.includes('FACTURA DE VENTA') || cleanTextForType.includes('FACTURA COMERCIAL')) {
                         type = 'FACTURA'; // tiene IGV 18%
                     } else if (seriesNumber && /^B/i.test(seriesNumber)) {
                         type = 'BOLETA'; // solo B... como fallback
