@@ -1618,7 +1618,7 @@
             const tbody = el('empresas-table-body');
             tbody.innerHTML = '';
             empresas.forEach(emp => {
-                tbody.innerHTML += `< tr data - id="${emp.id}" ><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><td><button class="btn danger btn-sm" data-action="delete-empresa">Eliminar</button></td></tr > `;
+                tbody.innerHTML += `<tr data-id="${emp.id}"><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><td><button class="btn danger btn-sm" data-action="delete-empresa">Eliminar</button></td></tr>`;
             });
         }
 
@@ -1628,7 +1628,7 @@
             usuarios.forEach(user => {
                 const row = document.createElement('tr');
                 row.dataset.id = user.id;
-                const empresaOptions = empresas.map(e => `< option value = "${e.id}" ${e.id === user.empresaId ? 'selected' : ''}> ${e.nombre || e.razon}</option > `).join('');
+                const empresaOptions = empresas.map(e => `<option value="${e.id}" ${e.id === user.empresaId ? 'selected' : ''}>${e.nombre || e.razon}</option>`).join('');
 
                 // Los proyectos son un array de strings (nombres) directamente en el doc user
                 const userProyectos = user.proyectos || [];
@@ -1640,14 +1640,14 @@
                 )].filter(p => p && p.trim()).sort();
 
                 const proyectosHtml = todosProyectos.map(nombre => `
-                    < label style = "display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;" >
+                    <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
                         <input type="checkbox" class="user-proyectos-cb" value="${nombre}" ${userProyectos.includes(nombre) ? 'checked' : ''} disabled>
                             <span>${nombre}</span>
                         </label>
                 `).join('');
 
                 row.innerHTML = `
-                    < td >
+                    <td>
                     <input class="user-nombres read-only-input" value="${user.nombres || user.nombre || ''}" placeholder="Nombre" readonly style="width:120px;">
                 </td>
                 <td style="text-align:center;">
@@ -1698,7 +1698,7 @@
             }
 
             // Cada proyecto es un string nombre; usamos el nombre como value tambien
-            const optionsHtml = proyectosParaMostrar.map(nombre => `< option value = "${nombre}" > ${nombre}</option > `).join('');
+            const optionsHtml = proyectosParaMostrar.map(nombre => `<option value="${nombre}">${nombre}</option>`).join('');
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
@@ -1730,7 +1730,7 @@
                 const row = document.createElement('tr');
                 row.dataset.id = a.id;
                 row.innerHTML = `
-                    < td > ${a.id || '-'}</td >
+                    <td>${a.id || '-'}</td>
                     <td><input class="obra-nombre" value="${a.nombre || ''}" readonly style="border:none; background:transparent;"></td>
                     <td>
                         <button class="btn primary btn-sm" data-action="edit-obra" style="padding:2px 6px;">Editar</button>
@@ -1746,7 +1746,7 @@
             const owners = [...new Set(historyBoxes.map(b => b.ownerName).filter(Boolean))];
             const currentVal = filterResponsable.value;
             filterResponsable.innerHTML = '<option value="">Todos los Responsables</option>' +
-                owners.map(name => `< option value = "${name}" > ${name}</option > `).join('');
+                owners.map(name => `<option value="${name}">${name}</option>`).join('');
             filterResponsable.value = currentVal;
         }
 
