@@ -1189,11 +1189,6 @@
                     <div class="card-h">
                         <div style="display:flex; align-items:center;">
                             <b>Usuarios</b>
-                            <button id="import-auth-btn" class="btn ghost btn-sm"
-                                style="margin-left:15px; font-size:10px;"
-                                title="Importar JSON exportado desde Firebase Authentication para sincronizar correos">📥
-                                Sincronizar Correos</button>
-                            <input type="file" id="import-auth-input" accept=".json" style="display:none;">
                         </div>
                         <div>
                             <button id="add-usr-btn" class="btn primary btn-sm" style="margin-right:10px;">➕ Crear
@@ -1208,7 +1203,6 @@
                                     <tr>
                                         <th>Nombre</th>
                                         <th>Acceso CC</th>
-                                        <th>Email</th>
                                         <th>Empresa</th>
                                         <th>Rol</th>
                                         <th>Proyectos Asignados</th>
@@ -1241,7 +1235,7 @@
         <div class="login-card" style="max-width: 450px;">
             <h3>Crear Nuevo Usuario</h3>
             <div class="form-group"><label>Nombres</label><input type="text" id="new-user-names"></div>
-            <div class="form-group" style="margin-top:8px"><label>Email</label><input type="email" id="new-user-email">
+            <div class="form-group" style="margin-top:8px" style="display:none;"><label>Email Funcional</label><input type="email" id="new-user-email" placeholder="Para Auth interno">
             </div>
             <div class="form-group" style="margin-top:8px"><label>Contraseña</label><input type="password"
                     id="new-user-pass"></div>
@@ -1346,17 +1340,7 @@
                 const userDocSnap = await getDoc(doc(db, "users", user.uid));
                 if (userDocSnap.exists()) {
                     const firestoreData = userDocSnap.data();
-                    // Auto-sincronizar email de Firebase Auth → Firestore si no existe
-                    // Esto cubre usuarios creados desde Planilla que no tienen campo 'email' en Firestore
-                    if (user.email && !firestoreData.email) {
-                        try {
-                            await updateDoc(doc(db, "users", user.uid), { email: user.email });
-                            firestoreData.email = user.email; // actualizar localmente
-                            console.log('[AutoSync] Email guardado en Firestore:', user.email);
-                        } catch (syncErr) {
-                            console.warn('[AutoSync] No se pudo guardar email:', syncErr);
-                        }
-                    }
+
                     currentUserData = { uid: user.uid, email: user.email, ...firestoreData };
                     el('who').textContent = `Conectado: ${currentUserData.nombres || currentUserData.email}`;
                     el('app-content').style.display = 'block';
@@ -1675,7 +1659,6 @@
                 <td style="text-align:center;">
                     <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled style="transform: scale(1.2);">
                 </td>
-                <td><input class="user-email read-only-input" value="${emailDisplay}" placeholder="${emailPlaceholder}" readonly style="${emailStyle}" title="${emailDisplay || 'Sin email - haga clic en Editar para asignar el correo de acceso'}"></td>
                 <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
                 <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
@@ -2069,7 +2052,6 @@
                         try {
                             const prevId = prevRow.dataset.id;
                             const prevName = prevRow.querySelector('.user-nombres').value.trim();
-                            const prevEmail = prevRow.querySelector('.user-email').value.trim();
                             const prevRole = prevRow.querySelector('.user-rol').value;
                             const prevEmpresaId = prevRow.querySelector('.user-empresa').value;
                             const prevProjects = Array.from(prevRow.querySelectorAll('.user-proyectos-cb:checked')).map(cb => cb.value);
@@ -2077,7 +2059,6 @@
 
                             await updateDoc(doc(db, "users", prevId), {
                                 nombres: prevName,
-                                email: prevEmail,
                                 rol: prevRole,
                                 empresaId: prevEmpresaId,
                                 proyectos: prevProjects,
@@ -2088,9 +2069,8 @@
                 }
 
                 row.classList.add('is-editing');
-                row.querySelectorAll('select, .user-nombres, .user-email, input[type="checkbox"]').forEach(input => input.disabled = false);
+                row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = false);
                 row.querySelector('.user-nombres').classList.remove('read-only-input');
-                row.querySelector('.user-email').classList.remove('read-only-input');
                 row.querySelector('.edit-mode-btns').style.display = 'none';
                 row.querySelector('.save-mode-btns').style.display = 'flex';
                 return;
