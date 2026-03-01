@@ -1793,7 +1793,7 @@
                 sumSaldo += saldo;
 
                 tr.innerHTML = `
-                    < td > ${box.cajaNumero || 'S/N'}</td >
+                    <td>${box.cajaNumero || 'S/N'}</td>
                     <td>${closeDate}</td>
                     <td>${box.obraNombre || 'General'}</td>
                     <td>${box.ownerName || box.ownerId}</td>
@@ -1854,7 +1854,7 @@
                         const saldo = initial - total;
 
                         tr.innerHTML = `
-                    < td > ${box.cajaNumero || 'S/N'}</td >
+                    <td>${box.cajaNumero || 'S/N'}</td>
                             <td>${sendDate}</td>
                             <td>${box.obraNombre || 'General'}</td>
                             <td>${box.ownerName || box.ownerId}</td>
@@ -2135,6 +2135,10 @@
         // ── Botón Eliminar Todos los Gastos ──────────────────────────
         el('delete-all-btn').addEventListener('click', async () => {
             if (!activePettyCash) return;
+            if (activePettyCash.status !== 'ACTIVA') {
+                alert('No puede eliminar gastos de una caja que ya fue enviada a Revisión o está Cerrada.');
+                return;
+            }
             if (expenses.length === 0) {
                 alert('No hay gastos para eliminar.');
                 return;
@@ -2148,7 +2152,6 @@
                 expenses.forEach(exp => {
                     const docRef = doc(db, 'cajasChicasActivas', cajaId, 'expenses', exp.id);
                     batch.delete(docRef);
-                    // Si hay archivo adjuunto, tal vez borrar el de storage sería ideal, pero dejaremos eso para cleanup tasks (complejidad).
                 });
                 await batch.commit();
             } catch (error) {
@@ -2515,10 +2518,20 @@
             }
             if (!confirm("¿Está seguro de que desea ENVIAR A REVISIÓN esta caja chica? Pasará al Residente u Oficina Técnica.")) return;
 
-            // Limpiar canvas
-            const canvas = document.getElementById('signature-pad');
-            signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
-            el('signature-modal-overlay').style.display = 'flex';
+            try {
+                // Limpiar canvas
+                const canvas = document.getElementById('signature-pad');
+                if (!signatureCtx && canvas) {
+                    signatureCtx = canvas.getContext('2d');
+                }
+                if (signatureCtx && canvas) {
+                    signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                el('signature-modal-overlay').style.display = 'flex';
+            } catch (e) {
+                console.error("Error al abrir modal de firma:", e);
+                el('signature-modal-overlay').style.display = 'flex'; // Tratar de abrirlo de todas formas
+            }
         }
 
         async function finalizePettyCashSubmission() {
@@ -2562,6 +2575,63 @@
         }
 
         el('btn-close-box').addEventListener('click', closePettyCash);
+
+        // --- INICIALIZACIÓN DE CANVAS PARA FIRMAS ---
+        el('btn-cancel-sig').addEventListener('click', () => {
+            el('signature-modal-overlay').style.display = 'none';
+        });
+
+        el('btn-clear-sig').addEventListener('click', () => {
+            const canvas = document.getElementById('signature-pad');
+            if (signatureCtx) signatureCtx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        el('btn-save-sig').addEventListener('click', finalizePettyCashSubmission);
+
+        const canvas = el('signature-pad');
+        if (canvas) {
+            signatureCtx = canvas.getContext('2d');
+            signatureCtx.lineWidth = 2;
+            signatureCtx.strokeStyle = '#000';
+            signatureCtx.lineCap = 'round';
+            signatureCtx.lineJoin = 'round';
+
+            const getPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            };
+
+            const startDrawing = (e) => {
+                e.preventDefault();
+                isDrawing = true;
+                const pos = getPos(e);
+                lastX = pos.x; lastY = pos.y;
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                e.preventDefault();
+                const pos = getPos(e);
+                signatureCtx.beginPath();
+                signatureCtx.moveTo(lastX, lastY);
+                signatureCtx.lineTo(pos.x, pos.y);
+                signatureCtx.stroke();
+                lastX = pos.x; lastY = pos.y;
+            };
+
+            const stopDrawing = () => { isDrawing = false; };
+
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+
+            canvas.addEventListener('touchstart', startDrawing, { passive: false });
+            canvas.addEventListener('touchmove', draw, { passive: false });
+            canvas.addEventListener('touchend', stopDrawing);
+        }
 
         // --- NUEVA LÓGICA PARA EXTRACCIÓN DE XML ---
         el('xml-btn').addEventListener('click', () => el('xml-file-input').click());
