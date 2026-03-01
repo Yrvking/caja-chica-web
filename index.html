@@ -2547,38 +2547,47 @@
         async function finalizePettyCashSubmission() {
             const canvas = document.getElementById('signature-pad');
             const dataUrl = canvas.toDataURL('image/png');
-            // Verificar caja vacia (heuristica burda pero funcional)
-            // if(dataUrl.length < 5000) return alert("Debe realizar su firma"); 
-            // Preferimos que lo mande aun si firma chico.
 
             el('signature-modal-overlay').style.display = 'none';
             toggleLoading(true);
 
             try {
                 const cajaId = getActiveCajaId();
-                const totalCalculado = expenses.reduce((sum, exp) => sum + exp.total, 0);
+                const totalCalculado = expenses.reduce((sum, exp) => sum + (Number(exp.total) || 0), 0);
 
-                // Subir Firma
-                const fileName = `firma_${cajaId}_${Date.now()}.png`;
-                const fileRef = ref(storage, `caja_chica_firmas/${fileName}`);
-                const res = await fetch(dataUrl);
-                const blob = await res.blob();
-                const snapshot = await uploadBytes(fileRef, blob);
-                const firmaRemitenteUrl = await getDownloadURL(snapshot.ref);
+                let firmaRemitenteUrl = null;
 
-                // En lugar de borrar y mandarlo al historial, solo cambiamos a EN REVISION
-                const pettyCashRef = doc(db, "cajasChicasActivas", cajaId);
-                await updateDoc(pettyCashRef, {
-                    status: 'EN REVISION',
-                    totalGastado: totalCalculado,
-                    firmaRemitenteUrl: firmaRemitenteUrl,
-                    submittedAt: serverTimestamp()
-                });
+                try {
+                    // Subir Firma a Storage
+                    const fileName = `firma_${cajaId}_${Date.now()}.png`;
+                    const fileRef = ref(storage, `caja_chica_firmas/${fileName}`);
+                    const res = await fetch(dataUrl);
+                    const blob = await res.blob();
+                    const snapshot = await uploadBytes(fileRef, blob);
+                    firmaRemitenteUrl = await getDownloadURL(snapshot.ref);
+                } catch (storageErr) {
+                    console.error("Firebase Storage Error:", storageErr);
+                    throw new Error("No se pudo subir la imagen de la firma a Firebase Storage. Es posible que falten Reglas de Seguridad en tu Storage. Detalles: " + storageErr.message);
+                }
+
+                try {
+                    // Actualizar estado en Firestore
+                    const pettyCashRef = doc(db, "cajasChicasActivas", cajaId);
+                    await updateDoc(pettyCashRef, {
+                        status: 'EN REVISION',
+                        totalGastado: totalCalculado,
+                        firmaRemitenteUrl: firmaRemitenteUrl,
+                        submittedAt: serverTimestamp()
+                    });
+                } catch (dbErr) {
+                    console.error("Firestore Update Error:", dbErr);
+                    throw new Error("No se pudo actualizar el estado de la caja en Firestore. Detalles: " + dbErr.message);
+                }
 
                 alert(`Caja ${activePettyCash.cajaNumero} enviada correctamente a revisión.`);
             } catch (error) {
-                console.error("Error al enviar caja a revisión:", error);
-                alert("Ocurrió un error al enviar la caja a revisión.");
+                console.error("Error global al enviar caja a revisión:", error);
+                alert("Error al enviar a revisión:\n" + error.message);
             } finally {
                 toggleLoading(false);
             }
