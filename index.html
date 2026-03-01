@@ -1540,19 +1540,20 @@
                 const expenseDate = expense.date?.seconds ? new Date(expense.date.seconds * 1000).toISOString().split('T')[0]
                     : (expense.date instanceof Date ? expense.date.toISOString().split('T')[0] : '');
 
+                row.innerHTML = `
                 const isActiva = !activePettyCash || activePettyCash.status === 'ACTIVA' || !activePettyCash.status;
                 const dis = isActiva ? '' : 'disabled';
                 
                 row.innerHTML = `
-                    <td title="${expenseDate}"><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
-                    <td><select data-field="type" title="${esc(expense.type)}" ${dis}>
-                        <option value="BOLETA" ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
-                        <option value="FACTURA" ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
-                        <option value="RXH" ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
-                        <option value="NOTA DE CREDITO" ${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>N.Cred</option>
-                        <option value="MOVILIDAD" ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movilidad</option>
-                        <option value="OTRO" ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
-                    </select></td>
+                    < td title = "${expenseDate}" ><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
+                <td><select data-field="type" title="${esc(expense.type)}" ${dis}>
+                    <option value="BOLETA"         ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
+                    <option value="FACTURA"        ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
+                    <option value="RXH"            ${expense.type === 'RXH' ? 'selected' : ''}>RxH</option>
+                    <option value="NOTA DE CREDITO"${expense.type === 'NOTA DE CREDITO' ? 'selected' : ''}>N.Cred</option>
+                    <option value="MOVILIDAD"      ${expense.type === 'MOVILIDAD' ? 'selected' : ''}>Movil.</option>
+                    <option value="OTRO"           ${expense.type === 'OTRO' ? 'selected' : ''}>Otro</option>
+                </select></td>
                 <td title="${esc(expense.seriesNumber)}"><input type="text" data-field="seriesNumber" value="${esc(expense.seriesNumber)}" placeholder="Serie" ${dis}></td>
                 <td title="${esc(expense.ruc)}"><input type="text" data-field="ruc" value="${esc(expense.ruc)}" placeholder="RUC" maxlength="11" ${dis}></td>
                 <td title="${esc(expense.name)}"><input type="text" data-field="name" value="${esc(expense.name)}" placeholder="Razón Social" ${dis}></td>
@@ -1607,8 +1608,8 @@
                 <td><input class="pc-description" value="${pc.descripcion || ''}"></td>
                 <td>
                     <button class="btn primary btn-sm" data-action="save-pc">Guardar</button>
-                     <bu tton class="btn da n ger btn-sm" data-action="delete-pc">Eliminar< /but ton>
-                  </td>
+                    <button class="btn danger btn-sm" data-action="delete-pc">Eliminar</button>
+                </td>
                 `;
                 tbody.appendChild(row);
             });
@@ -1618,7 +1619,7 @@
             const tbody = el('empresas-table-body');
             tbody.innerHTML = '';
             empresas.forEach(emp => {
-                tbody.innerHTML += `< tr data - id="${emp.id}" ><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><t                    " bt n  d anger  btn- sm" data-action="delete-empresa">Eliminar</button></td></tr > `;
+                tbody.innerHTML += `< tr data - id="${emp.id}" ><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><td><button class="btn danger btn-sm" data-action="delete-empresa">Eliminar</button></td></tr > `;
             });
         }
 
@@ -1627,40 +1628,34 @@
             tbody.innerHTML = '';
             usuarios.forEach(user => {
                 const row = document.createElement('tr');
-                            set.id = user.id;
+                row.dataset.id = user.id;
                 const empresaOptions = empresas.map(e => `< option value = "${e.id}" ${ e.id === user.empresaId ? 'selected' : '' }> ${ e.nombre || e.razon }</option > `).join('');
 
-                // Los proyectos son un array de strings (nombres) direct amente  e n el doc user
-                 const userProyectos = user.proyectos || [];
+                // Los proyectos son un array de strings (nombres) directamente en el doc user
+                const userProyectos = user.proyectos || [];
 
-                // Obtener todos los proyectos disponibles SOLO desde los arrays 'proye c tos' de usuarios
+                // Obtener todos los proyectos disponibles SOLO desde los arrays 'proyectos' de usuarios
                 // Los valores en ese array son proyectos configurados por el admin (ej: ADMINISTRATIVO, CARABAYLLO, etc.)
                 const todosProyectos = [...new Set(
                     usuarios.flatMap(u => u.proyectos || [])
                 )].filter(p => p && p.trim()).sort();
 
-                const proyectosHtml = todo sProyectos.m a p(nombre =>  `
-                    < label style = "di sp la y:flex; align-items :center;  f ont-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;" >
+                const proyectosHtml = todosProyectos.map(nombre => `
+                    < label style = "display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;" >
                         <input type="checkbox" class="user-proyectos-cb" value="${nombre}" ${userProyectos.includes(nombre) ? 'checked' : ''} disabled>
                             <span>${nombre}</span>
                         </label>
                 `).join('');
 
-                // Email: campo 'email' guardado en Firestore al crear el usuario
-                // Si está vacío, puede editarse haciendo click en Editar en esta tabla
-                const emailDisplay = user.email || '';
-                const emailStyle = emailDisplay ? 'width:180px; font-size:11px;' : 'width:180px; fo nt-size:11p x ; background:#fff3cd; border:1px solid #f59e0b; color:#92400e;';
-                const emailPlaceho lder = emailDisplay ? '-' : '⚠ Click Editar para agregar email';
-
                 row.innerHTML = `
                     < td >
-                    <input                             -only-input" value="${u                        nombre || ''}" placeholder="Nombre" readonly style="width:120px;">
+                    <input class="user-nombres read-only-input" value="${user.nombres || user.nombre || ''}" placeholder="Nombre" readonly style="width:120px;">
                 </td>
                 <td style="text-align:center;">
                     <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled style="transform: scale(1.2);">
                 </td>
                 <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
-                <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO'                     ' }> Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
+                <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
                     <div style="max-height:80px; overflow-y:auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#f9f9f9; display:flex; flex-direction:column; min-width:140px;">
                         ${proyectosHtml || '<span style="font-size:11px;color:#999;">Sin proyectos</span>'}
@@ -1696,7 +1691,7 @@
             if (isAdmin) {
                 // Admin: recopilar todos los proyectos del array 'proyectos' de cualquier user
                 // El admin puede tener 'ADMINISTRATIVO' como proyecto válido - no filtrar por nombre
-                    const desdeUsuarios = usuarios.flatMap(u => u.proyectos || []);
+                const desdeUsuarios = usuarios.flatMap(u => u.proyectos || []);
                 proyectosParaMostrar = [...new Set([...desdeUsuarios, ...proyectosDelUsuario])]
                     .filter(Boolean).sort();
             } else {
@@ -1721,8 +1716,8 @@
                 globalSelect.innerHTML = '<option value="">-- Seleccione un Proyecto --</option>' + optionsHtml;
                 // Auto-seleccionar proyDef si no hay nada seleccionado
                 if (proyDefUsuario && !currentVal) {
-                    global Select.value   = proyDefUs u ar io;
-                   } else if (currentVal && proyectosParaMostrar.includes(currentVal)) {
+                    globalSelect.value = proyDefUsuario;
+                } else if (currentVal && proyectosParaMostrar.includes(currentVal)) {
                     globalSelect.value = currentVal;
                 }
             }
@@ -1752,8 +1747,8 @@
             const owners = [...new Set(historyBoxes.map(b => b.ownerName).filter(Boolean))];
             const currentVal = filterResponsable.value;
             filterResponsable.innerHTML = '<option value="">Todos los Responsables</option>' +
-                owners.map(name => `< option value = "${name}" > ${ name }</option > `).j oi n (' ');
-              filterResponsable.value = currentVal;
+                owners.map(name => `< option value = "${name}" > ${ name }</option > `).join('');
+            filterResponsable.value = currentVal;
         }
 
         function renderHistoryView() {
@@ -1773,7 +1768,7 @@
             if (filtered.length === 0) {
                 table.style.display = 'none';
                 summaryContainer.style.display = 'none';
-                 emptyM s g.style.d i sp lay  = 'block' ; 
+                emptyMsg.style.display = 'block';
                 return;
             }
 
@@ -1810,10 +1805,10 @@
                         <button class="btn primary btn-sm icon-btn" data-action="export-excel" data-id="${box.id}" title="Exportar a Excel LITORAL" style="padding:3px 6px; font-size:11px;">📊 Excel</button>
                     </td>
                 `;
-                tbody.appen dC h il d(tr);
+                tbody.appendChild(tr);
             });
- 
-             const elTotalAsignado = el('hist-total-asignado');
+
+            const elTotalAsignado = el('hist-total-asignado');
             if (elTotalAsignado) elTotalAsignado.textContent = `S / ${ sumAsignado.toFixed(2) } `;
             const elTotalGastado = el('hist-total-gastado');
             if (elTotalGastado) elTotalGastado.textContent = `S / ${ sumGastado.toFixed(2) } `;
@@ -1834,15 +1829,15 @@
             try {
                 // Consultamos las cajas enviadas a revisión ('EN REVISION')
                 const q = query(collection(db, "cajasChicasActivas"));
-                const querySnapsho t =  await getDocs(q);
+                const querySnapshot = await getDocs(q);
 
-                  let pendingBoxes = [];
+                let pendingBoxes = [];
                 querySnapshot.forEach(docSnap => {
-                    const data = docSnap. data ();
-                      if (data.status === 'EN REVISION') {
+                    const data = docSnap.data();
+                    if (data.status === 'EN REVISION') {
                         pendingBoxes.push({ id: docSnap.id, ...data });
-                      }
-                  });
+                    }
+                });
 
                 if (pendingBoxes.length === 0) {
                     table.style.display = 'none';
@@ -1870,7 +1865,8 @@
                                 <button class="btn primary btn-sm action-approve" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Cerrar VB</button>
                                 <button class="btn danger btn-sm action-reject" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Rechazar</button>
                             </td>
-                                       tbody.appendChi ld(tr );
+                `;
+                        tbody.appendChild(tr);
                     });
                 }
             } catch (e) {
@@ -1891,7 +1887,7 @@
                 }
             } else if (btnReject) {
                 const boxId = btnReject.dataset.id;
-                if (confirm("¿Estás segur                 Volverá a estado ACTIVA para el usuario.")) {
+                if (confirm("¿Estás seguro de Rechazar esta caja? Volverá a estado ACTIVA para el usuario.")) {
                     toggleLoading(true);
                     try {
                         await updateDoc(doc(db, "cajasChicasActivas", boxId), {
@@ -1962,8 +1958,8 @@
                 const status = activePettyCash.status || 'ACTIVA';
                 const isActiva = status === 'ACTIVA';
                 
-                el('caja-chica-number').textContent = `Caja N° ${ activePettyCash.cajaNumer o } `;
-                 el('caja-chica-status').textContent = `Estado: ${ status } `;
+                el('caja-chica-number').textContent = `Caja N° ${ activePettyCash.cajaNumero } `;
+                el('caja-chica-status').textContent = `Estado: ${ status } `;
                 el('caja-chica-status').style.color = isActiva ? 'var(--ok)' : (status === 'EN REVISION' ? '#eab308' : 'var(--muted)');
                 if (obraInfo) obraInfo.textContent = activePettyCash.obraNombre ? `Obra: ${ activePettyCash.obraNombre } ` : '';
 
@@ -1976,13 +1972,13 @@
                 }
                 saveInitialAmountBtn.style.display = 'none';
                 const editBtn = el('edit-initial-amount-btn');
-                if (editBtn) edit Btn.style.display = isActi v a ? 'inline-flex' : 'none';
-                el('add-manual-btn').dis abled  =  !isActiva;
+                if (editBtn) editBtn.style.display = isActiva ? 'inline-flex' : 'none';
+                el('add-manual-btn').disabled = !isActiva;
                 el('xml-btn').disabled = !isActiva;
                 if (el('pdf-btn')) el('pdf-btn').disabled = !isActiva;
                 el('btn-close-box').disabled = !isActiva;
             } else {
-                 el('caja-chica-number').te x tContent = 'No hay caja chica activa';
+                el('caja-chica-number').textContent = 'No hay caja chica activa';
                 el('caja-chica-status').textContent = 'Estado: CERRADA';
                 el('caja-chica-status').style.color = 'var(--muted)';
                 if (obraInfo) obraInfo.textContent = '';
@@ -2044,7 +2040,7 @@
             if (!row) return;
 
             if (action === 'edit-user') {
-                // Auto-guard ar previas filas en e d ición antes de editar una nueva
+                // Auto-guardar previas filas en edición antes de editar una nueva
                 const currentlyEditing = document.querySelectorAll('#users-table-body tr.is-editing');
                 if (currentlyEditing.length > 0) {
                     for (const prevRow of currentlyEditing) {
@@ -2167,10 +2163,10 @@
         el('show-log-btn').addEventListener('click', () => {
             if (!extractionLogs.length) {
                 alert('No hay logs de extracción en esta sesión. Suba un PDF o XML primero.');
-                 return ;
+                return;
             }
 
-            let logText = `===== = ===========================================\n`;
+            let logText = `=================================================\n`;
             logText += ` REPOSITORIO DE LOGS DE EXTRACCIÓN - CAJA CHICA\n`;
             logText += ` Fecha de generación: ${ new Date().toLocaleString() } \n`;
             logText += `=================================================\n\n`;
@@ -2195,7 +2191,7 @@
             });
 
             const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
-            const ur l = URL.createObjectURL(blo b );
+            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = `logs_extraccion_${ new Date().getTime() }.txt`;
@@ -2205,22 +2201,22 @@
             URL.revokeObjectURL(url);
         });
 
-        el('filter-obra')?.addEventListener('change', renderHisory View);
-        el( 'fi lter-responsable')?.addEventListener('change', renderHistoryView);
+        el('filter-obra')?.addEventListener('change', renderHistoryView);
+        el('filter-responsable')?.addEventListener('change', renderHistoryView);
 
-        el('add-obra- btn')?.a d dEventListener('c lick', asy n c () => {
-            const codigo = el('new-obra-coigo').value.trim();
-            const nomb re  = el('new-obra-nombre').value.trim();
+        el('add-obra-btn')?.addEventListener('click', async () => {
+            const codigo = el('new-obra-codigo').value.trim();
+            const nombre = el('new-obra-nombre').value.trim();
             if (nombre) {
-                toggle Loading( t rue);
-                 try { 
-                     // Guardamos en 'areas' para cosistenca c on Planilla Web
-                      const docId = codigo || nombre.toLowerCase().replace(/\s+/g, '_').repl ace(/[^a - z0-9_]/g, '');
-                       await setDoc(doc(db, 'areas', docId), { codigo, nombre, createdAt: serverTimestamp() }, { merge: true });
+                toggleLoading(true);
+                try {
+                    // Guardamos en 'areas' para cosistenca con Planilla Web
+                    const docId = codigo || nombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    await setDoc(doc(db, 'areas', docId), { codigo, nombre, createdAt: serverTimestamp() }, { merge: true });
                     el('new-obra-codigo').value = '';
                     el('new-obra-nombre').value = '';
-                    alert(`Proyecto "${nombre}" guardado  correctamente.`);
-                 } catch (e) {
+                    alert(`Proyecto "${nombre}" guardado correctamente.`);
+                } catch (e) {
                     console.error(e);
                     alert("Error guardando proyecto. Verifique las Reglas de Firestore: " + e.message);
                 }
@@ -2279,7 +2275,7 @@
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.on load =  async (e) => {
+            reader.onload = async (e) => {
                 toggleLoading(true);
                 try {
                     const data = new Uint8Array(e.target.result);
@@ -2328,8 +2324,8 @@
                 return;
             }
 
-            // Obtener nombre del proyecto: ya que el obraId es el nombre del proyecto (stri n g)
-             cons t areaDoc = proyectosArr.find(a => a.id === obraId || a.nombre === obraId);
+            // Obtener nombre del proyecto: ya que el obraId es el nombre del proyecto (string)
+            const areaDoc = proyectosArr.find(a => a.id === obraId || a.nombre === obraId);
             const obraNombre = areaDoc ? (areaDoc.nombre || areaDoc.id) : obraId;
 
             if (!activePettyCash) {
@@ -2360,8 +2356,8 @@
                     alert(`Caja ${ newCajaNumero } iniciada para "${obraNombre}" con S / ${ amount.toFixed(2) } `);
                 } catch (error) {
                     console.error("Error al iniciar caja:", error);
-                    alert("No se pudo iniciar la caja.\n\nError: " + error.message + "\n\nVerifique que las reglas de Firebase estén actualizadas (ver firebase-rules-upd a te .md)");
-                } finally   {
+                    alert("No se pudo iniciar la caja.\n\nError: " + error.message + "\n\nVerifique que las reglas de Firebase estén actualizadas (ver firebase-rules-update.md)");
+                } finally {
                     toggleLoading(false);
                 }
             }
@@ -2380,8 +2376,8 @@
                     editBtn.classList.add('primary');
                 } else {
                     // Guardar edición
-                    const newAmoun t = parseFloa t(input.value);
-                    i f (i sNaN(newAmount) | |  newAmount <= 0) {
+                    const newAmount = parseFloat(input.value);
+                    if (isNaN(newAmount) || newAmount <= 0) {
                         alert("El monto debe ser un número mayor a 0.");
                         return;
                     }
@@ -2409,7 +2405,7 @@
             });
         }
 
-        el('expenses-table-body' ).ad dEventListener('chan ge', async (e) => {
+        el('expenses-table-body').addEventListener('change', async (e) => {
             if (e.target.matches('[data-action="upload-expense-file"]')) {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -2440,54 +2436,76 @@
             const field = e.target.dataset.field;
             let value = e.target.value;
             if (e.target.type === 'date') value = e.target.valueAsDate;
-            if (e.target.type === 'number') value = parseFloat(value)  || 0;
+            if (e.target.type === 'number') value = parseFloat(value) || 0;
 
-              const updateData = { [fi e ld]: value };
+            const updateData = { [field]: value };
 
             // Tipo de documento actual
-            const typ e In put =  row.querySelector            ]');
-            const currentType = field === 'typ            put ? typeInput.value : 'FACTURA');
-            const            e === 'FACTURA' || currentType === 'NOTA DE CREDITO';
+            const typeInput = row.querySelector('[data-field="type"]');
+            const currentType = field === 'type' ? value : (typeInput ? typeInput.value : 'FACTURA');
+            const hasIGV = currentType === 'FACTURA' || currentType === 'NOTA DE CREDITO';
 
             if (field === 'type') {
-              totalInput = row.querySelector('[data-fiel                      cons            alInput ? (parseFloat(totalInput.value) || 0) : 0             (hasIGV) {
-                    updateDat        re                            up        urrentTotal - updateD                      } else {
-                updateData.subtotal = currentTotal;
-                    updat                           }
-            } else             otal') {
-                if (hasIG                     updateData.subtotal = value /                       updateData.igv =             ta.subtotal;
+                const totalInput = row.querySelector('[data-field="total"]');
+                const currentTotal = totalInput ? (parseFloat(totalInput.value) || 0) : 0;
+                if (hasIGV) {
+                    updateData.subtotal = currentTotal / 1.18;
+                    updateData.igv = currentTotal - updateData.subtotal;
                 } else {
-                    up            l = value;
+                    updateData.subtotal = currentTotal;
                     updateData.igv = 0;
-                          } else if (field === 'subtotal') {
-                 asIGV) {
-                               = value * 0.18;
-                    updateData.total = value            v;
+                }
+            } else if (field === 'total') {
+                if (hasIGV) {
+                    updateData.subtotal = value / 1.18;
+                    updateData.igv = value - updateData.subtotal;
+                } else {
+                    updateData.subtotal = value;
+                    updateData.igv = 0;
+                }
+            } else if (field === 'subtotal') {
+                if (hasIGV) {
+                    updateData.igv = value * 0.18;
+                    updateData.total = value + updateData.igv;
                 } else {
                     updateData.igv = 0;
-                    up             value;
+                    updateData.total = value;
                 }
             }
 
             try {
-                const            iveCajaId();
-                           (doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId),                      } catch (error) { console.error("Error al actualizar gasto:", error);                 });
+                const cajaId = getActiveCajaId();
+                await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), updateData);
+            } catch (error) { console.error("Error al actualizar gasto:", error); }
+        }
+        });
 
-                            ).addEventListener('click', async e => {
-                      atches('[data-action="delete-expense"]')) {
-                         .target.c                          if (confirm('¿Eliminar este ga                          toggleLoading(                              d = getActiveCajaId();
-                         eteDoc(doc(db,                    ajaId, "expenses", row.dataset.id));                    gleLoading(false);
+        el('expenses-table-body').addEventListener('click', async e => {
+            if (e.target.matches('[data-action="delete-expense"]')) {
+                const row = e.target.closest('tr');
+                if (confirm('¿Eliminar este gasto?')) {
+                    toggleLoading(true);
+                    const cajaId = getActiveCajaId();
+                    await deleteDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", row.dataset.id));
+                    toggleLoading(false);
                 }
-                               el(                    ntListener('click', async ()                     tivePettyCash) retur                eL                      try {
-                con                eCajaId();
-                       c(collection(db, "cajasChicasAc                    s"), {
-                    date: serverTime                ', series                    e: '', pc: '',
-                         on: '', subtotal: 0, igv:                 At            p()             });
-                 ctionLogs.push({
-                                 anual', status: 'ok',
-                    detail: 'OTRO | Sin Serie | Sin RUC | Añadido man            .00)'
+            }
+        });
+
+        el('add-manual-btn').addEventListener('click', async () => {
+            if (!activePettyCash) return;
+            toggleLoading(true);
+            try {
+                const cajaId = getActiveCajaId();
+                await addDoc(collection(db, "cajasChicasActivas", cajaId, "expenses"), {
+                    date: serverTimestamp(), type: 'OTRO', seriesNumber: '', ruc: '', name: '', pc: '',
+                    description: '', subtotal: 0, igv: 0, total: 0, createdAt: serverTimestamp()
                 });
-            } catch (error) { console.error("E        gar fila:", error); alert("No se pudo agregar la fila."); }
+                extractionLogs.push({
+                    file: 'Registro Manual', status: 'ok',
+                    detail: 'OTRO | Sin Serie | Sin RUC | Añadido manualmente (IGV: 0.00)'
+                });
+            } catch (error) { console.error("Error al agregar fila:", error); alert("No se pudo agregar la fila."); }
             toggleLoading(false);
         });
 
@@ -2912,7 +2930,7 @@
                         const [_, p1, p2, p3] = dateMatch;
                         date = p1.length === 4
                             ? new Date(`${p1}-${p2}-${p3}T12:00:00Z`)
-       : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
+                            : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
                         if (isNaN(date.getTime())) date = new Date();
                     }
 
@@ -3161,6 +3179,50 @@
             toggleLoading(false);
             event.target.value = '';
         }
+        // --- IMPORTACIÓN MASIVA DE CORREOS DESDE FIREBASE AUTH (JSON) ---
+        el('import-auth-btn').addEventListener('click', () => el('import-auth-input').click());
+        el('import-auth-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                const usersArr = data.users || [];
+                if (!usersArr.length) {
+                    alert("El JSON no tiene un array 'users' válido.");
+                    return;
+                }
+
+                toggleLoading(true);
+                const batch = writeBatch(db);
+                let count = 0;
+
+                for (const authUser of usersArr) {
+                    const uid = authUser.localId || authUser.uid;
+                    const email = authUser.email;
+                    if (uid && email) {
+                        const usr = usuarios.find(u => u.id === uid);
+                        if (usr && !usr.email) {
+                            batch.update(doc(db, "users", uid), { email: email });
+                            count++;
+                        }
+                    }
+                }
+
+                if (count > 0) {
+                    await batch.commit();
+                    alert(`¡Éxito! Se actualizaron ${count} correos desde el JSON de Auth.`);
+                } else {
+                    alert("No se encontraron correos nuevos para actualizar. O los usuarios ya tienen el correo en Firestore o el JSON no hizo match con sus UID.");
+                }
+            } catch (err) {
+                console.error("Error al procesar JSON:", err);
+                alert("Error al leer el archivo JSON. Verifica el formato.");
+            } finally {
+                e.target.value = '';
+                toggleLoading(false);
+            }
+        });
 
         // --- FUNCIÓN EXPORTACIÓN A EXCELJS (Formato Litoral) ---
         async function exportCajaToExcel(boxId) {
@@ -3200,9 +3262,9 @@
                 ws.getCell('C2').font = { bold: true };
 
                 ws.getCell('C3').value = `RUC: ${box.empresaId && empresas.find(e => e.id === box.empresaId)?.ruc || ""}`;
-                ws.getCell('I3').NTREGADO  :";
+                ws.getCell('I3').value = "MONTO ENTREGADO  :";
                 ws.getCell('I3').alignment = { horizontal: 'right' };
-                ws.getCell('J3'itialAmount || 0;
+                ws.getCell('J3').value = box.initialAmount || 0;
                 ws.getCell('J3').numFmt = '#,##0.00';
 
                 // Fecha de exportación
@@ -3211,7 +3273,7 @@
 
                 ws.getCell('G4').value = `CAJA ${box.cajaNumero ? box.cajaNumero.replace('CCH-', '') : ''}`;
                 ws.getCell('G4').font = { bold: true };
-                ws.getCell('G4')orizontal: 'center' };
+                ws.getCell('G4').alignment = { horizontal: 'center' };
 
                 ws.getCell('I4').value = "SALDO ANTERIOR: ";
                 ws.getCell('I4').alignment = { horizontal: 'right' };
