@@ -1186,7 +1186,11 @@
                 </div>
                 <div class="card">
                     <div class="card-h">
-                        <b>Usuarios</b>
+                        <div style="display:flex; align-items:center;">
+                            <b>Usuarios</b>
+                            <button id="import-auth-btn" class="btn ghost btn-sm" style="margin-left:15px; font-size:10px;" title="Importar JSON exportado desde Firebase Authentication para sincronizar correos">📥 Sincronizar Correos</button>
+                            <input type="file" id="import-auth-input" accept=".json" style="display:none;">
+                        </div>
                         <div>
                             <button id="add-usr-btn" class="btn primary btn-sm" style="margin-right:10px;">➕ Crear
                                 Usuario</button>
