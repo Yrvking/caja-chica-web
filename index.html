@@ -1014,6 +1014,8 @@
                     </div>
                 </div>
                 <div class="actions-container" style="justify-content: flex-end;">
+                    <button id="force-unlock-box" class="btn warning" style="display:none; margin-right:auto;"
+                        title="Forzar caja a estado ACTIVA (Solo ADMIN)">🔓 Forzar Desbloqueo</button>
                     <button id="btn-close-box" class="btn danger" disabled>Cerrar y Liquidar Caja</button>
                 </div>
             </div>
@@ -1607,7 +1609,7 @@
                 const row = document.createElement('tr');
                 row.dataset.id = pc.id;
                 row.innerHTML = `
-                    < td > ${pc.id}</td >
+                    <td>${pc.id}</td>
                 <td><input class="pc-description" value="${pc.descripcion || ''}"></td>
                 <td>
                     <button class="btn primary btn-sm" data-action="save-pc">Guardar</button>
@@ -1980,6 +1982,11 @@
                 el('xml-btn').disabled = !isActiva;
                 if (el('pdf-btn')) el('pdf-btn').disabled = !isActiva;
                 el('btn-close-box').disabled = !isActiva;
+
+                const forceUnlockBtn = el('force-unlock-box');
+                const isAdmin = currentUserData && currentUserData.rol === 'ADMIN';
+                if (forceUnlockBtn) forceUnlockBtn.style.display = (isAdmin && !isActiva) ? 'inline-flex' : 'none';
+
             } else {
                 el('caja-chica-number').textContent = 'No hay caja chica activa';
                 el('caja-chica-status').textContent = 'Estado: CERRADA';
@@ -2578,6 +2585,19 @@
         }
 
         el('btn-close-box').addEventListener('click', closePettyCash);
+
+        el('force-unlock-box')?.addEventListener('click', async () => {
+            if (!activePettyCash) return;
+            if (confirm("⚠️ ADVERTENCIA: Esta acción forzará el estado de la caja de vuelta a 'ACTIVA' para que puedas seguir editándola. ¿Está seguro?")) {
+                toggleLoading(true);
+                try {
+                    const cajaId = getActiveCajaId();
+                    await updateDoc(doc(db, "cajasChicasActivas", cajaId), { status: 'ACTIVA' });
+                    alert("Caja destrabada y forzada a estado ACTIVA.");
+                } catch (e) { alert("Error: " + e.message); }
+                toggleLoading(false);
+            }
+        });
 
         // --- INICIALIZACIÓN DE CANVAS PARA FIRMAS ---
         el('btn-cancel-sig').addEventListener('click', () => {
