@@ -1899,7 +1899,7 @@
 
             if (btnExcel) {
                 const boxId = btnExcel.dataset.id;
-                await exportPettyCashExcel(boxId, 'historial');
+                await exportCajaToExcel(boxId, 'cajasChicasHistorial');
             } else if (btnDelete) {
                 const boxId = btnDelete.dataset.id;
                 if (confirm("⚠️ PELIGRO: ¿Está seguro de ELIMINAR por completo esta caja chica del historial? Esta acción no se puede deshacer.")) {
@@ -1955,7 +1955,7 @@
                 }
             } else if (btnExcel) {
                 const boxId = btnExcel.dataset.id;
-                await exportPettyCashExcel(boxId, 'activa');
+                await exportCajaToExcel(boxId, 'cajasChicasActivas');
             } else if (btnDelete) {
                 const boxId = btnDelete.dataset.id;
                 if (confirm("⚠️ PELIGRO: ¿Está seguro de ELIMINAR por completo esta caja chica que está en revisión? Esta acción anulará y borrará todos los gastos vinculados.")) {
@@ -1977,89 +1977,7 @@
             }
         });
 
-        // --- SISTEMA DE EXPORTACIÓN EXCEL ---
-        async function exportPettyCashExcel(boxId, collectionName) {
-            if (typeof ExcelJS === 'undefined') {
-                return alert("La librería de Excel no se pudo cargar. Refresca la página.");
-            }
-            toggleLoading(true);
-            try {
-                const collPath = collectionName === 'historial' ? 'cajasChicasHistorial' : 'cajasChicasActivas';
-                const boxSnap = await getDoc(doc(db, collPath, boxId));
-                if (!boxSnap.exists()) throw new Error("La caja ya no existe.");
-                const boxD = boxSnap.data();
-
-                const qExp = query(collection(db, collPath, boxId, "expenses"), orderBy("date", "asc"));
-                const expSnap = await getDocs(qExp);
-                const expList = expSnap.docs.map(d => d.data());
-
-                // Crear Libro
-                const workbook = new ExcelJS.Workbook();
-                workbook.creator = 'Caja Chica Web v2';
-                const sheet = workbook.addWorksheet('Rendición Caja Chica');
-
-                // Cabeceras genéricas tipo Plantilla (se pueden expandir luego según LITORAL v3.0)
-                sheet.columns = [
-                    { header: 'FECHA', key: 'fecha', width: 12 },
-                    { header: 'TIPO COMPR.', key: 'tipo', width: 15 },
-                    { header: 'N° COMPR.', key: 'num', width: 18 },
-                    { header: 'RUC', key: 'ruc', width: 15 },
-                    { header: 'RAZÓN SOCIAL', key: 'razon', width: 35 },
-                    { header: 'PARTIDA CONTROL', key: 'pc', width: 15 },
-                    { header: 'DESCRIPCIÓN GASTO', key: 'desc', width: 45 },
-                    { header: 'SUBTOTAL', key: 'sub', width: 12 },
-                    { header: 'IGV', key: 'igv', width: 12 },
-                    { header: 'TOTAL', key: 'total', width: 12 }
-                ];
-
-                sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2744' } };
-
-                expList.forEach(e => {
-                    const row = sheet.addRow({
-                        fecha: e.date instanceof Date ? e.date.toLocaleDateString() : (e.date ? e.date.substring(0, 10) : ''),
-                        tipo: e.type || '',
-                        num: e.seriesNumber || '',
-                        ruc: e.ruc || '',
-                        razon: e.name || '',
-                        pc: e.pc || '',
-                        desc: e.description || '',
-                        sub: e.subtotal || 0,
-                        igv: e.igv || 0,
-                        total: e.total || 0
-                    });
-                    row.getCell('sub').numFmt = '#,##0.00';
-                    row.getCell('igv').numFmt = '#,##0.00';
-                    row.getCell('total').numFmt = '#,##0.00';
-                });
-
-                // Fila de Totales
-                const lastRow = sheet.addRow(['', '', '', '', '', '', 'TOTALES:',
-                    expList.reduce((s, x) => parseFloat(s) + (Number(x.subtotal) || 0), 0),
-                    expList.reduce((s, x) => parseFloat(s) + (Number(x.igv) || 0), 0),
-                    expList.reduce((s, x) => parseFloat(s) + (Number(x.total) || 0), 0)
-                ]);
-                lastRow.font = { bold: true };
-                lastRow.getCell(8).numFmt = '#,##0.00';
-                lastRow.getCell(9).numFmt = '#,##0.00';
-                lastRow.getCell(10).numFmt = '#,##0.00';
-
-                // Exportar
-                const buffer = await workbook.xlsx.writeBuffer();
-                const blob = new Blob([buffer], { type: 'application/octet-stream' });
-                const boxNumber = (boxD.cajaNumero || 'Sin_Numero').trim().replace(/\s+/g, '_');
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = `RENDICION_${boxNumber}_LITORAL.xlsx`;
-                link.click();
-
-            } catch (e) {
-                console.error("EXCEL Export Error:", e);
-                alert("Error al exportar: " + e.message);
-            } finally {
-                toggleLoading(false);
-            }
-        }
+        // ELIMINADA exportPettyCashExcel
 
         async function approveAndCloseBox(boxId) {
             toggleLoading(true);
@@ -2082,12 +2000,13 @@
                 };
                 batch.set(historyRef, finalData);
 
-                // Mover expenses
+                // Mover expenses y borrar de Activas
                 const qExp = query(collection(db, "cajasChicasActivas", boxId, "expenses"));
                 const expSnap = await getDocs(qExp);
                 expSnap.forEach(docSnap => {
                     const newExpenseRef = doc(collection(historyRef, "expenses"), docSnap.id);
                     batch.set(newExpenseRef, docSnap.data());
+                    batch.delete(docSnap.ref); // Asegurarse de borrar el gasto individual
                 });
 
                 batch.delete(pettyCashRef);
@@ -3476,16 +3395,20 @@
         });
 
         // --- FUNCIÓN EXPORTACIÓN A EXCELJS (Formato Litoral) ---
-        async function exportCajaToExcel(boxId) {
-            const box = historyBoxes.find(b => b.id === boxId);
-            if (!box) return;
+        async function exportCajaToExcel(boxId, collPath = 'cajasChicasHistorial') {
             toggleLoading(true);
-
             try {
-                // Obtener gastos de Firestore con 'getDocs' desde cajasChicasHistorial/{boxId}/expenses
-                // Utilizando getDocs dinámicamente o con importación global
-                const { getDocs } = await import("https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js");
-                const q = query(collection(db, "cajasChicasHistorial", boxId, "expenses"), orderBy("date", "asc"));
+                let box = null;
+                if (collPath === 'cajasChicasHistorial') {
+                    box = historyBoxes.find(b => b.id === boxId);
+                } else if (collPath === 'cajasChicasActivas') {
+                    const boxSnap = await getDoc(doc(db, collPath, boxId));
+                    if (boxSnap.exists()) box = { id: boxSnap.id, ...boxSnap.data() };
+                }
+
+                if (!box) throw new Error("La caja no fue encontrada o ya fue cerrada.");
+
+                const q = query(collection(db, collPath, boxId, "expenses"), orderBy("date", "asc"));
                 const querySnapshot = await getDocs(q);
                 let boxExpenses = [];
                 querySnapshot.forEach(docSnap => { boxExpenses.push({ id: docSnap.id, ...docSnap.data() }); });
@@ -3608,12 +3531,7 @@
             }
         }
 
-        el('history-table-body').addEventListener('click', async (e) => {
-            const btn = e.target.closest('[data-action="export-excel"]');
-            if (btn) {
-                await exportCajaToExcel(btn.dataset.id);
-            }
-        });
+        // Listener extra eliminado para evitar redundancia.
 
         // ── Modal Crear Usuario ─────────────────────────────────────────────────
         el('add-usr-btn')?.addEventListener('click', () => { el('user-modal-overlay').style.display = 'flex'; });
