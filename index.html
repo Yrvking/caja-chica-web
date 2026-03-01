@@ -1328,7 +1328,19 @@
             if (user) {
                 const userDocSnap = await getDoc(doc(db, "users", user.uid));
                 if (userDocSnap.exists()) {
-                    currentUserData = { uid: user.uid, email: user.email, ...userDocSnap.data() };
+                    const firestoreData = userDocSnap.data();
+                    // Auto-sincronizar email de Firebase Auth → Firestore si no existe
+                    // Esto cubre usuarios creados desde Planilla que no tienen campo 'email' en Firestore
+                    if (user.email && !firestoreData.email) {
+                        try {
+                            await updateDoc(doc(db, "users", user.uid), { email: user.email });
+                            firestoreData.email = user.email; // actualizar localmente
+                            console.log('[AutoSync] Email guardado en Firestore:', user.email);
+                        } catch(syncErr) {
+                            console.warn('[AutoSync] No se pudo guardar email:', syncErr);
+                        }
+                    }
+                    currentUserData = { uid: user.uid, email: user.email, ...firestoreData };
                     el('who').textContent = `Conectado: ${currentUserData.nombres || currentUserData.email}`;
                     el('app-content').style.display = 'block';
                     el('login-overlay').style.display = 'none';
