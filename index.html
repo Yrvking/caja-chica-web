@@ -1617,12 +1617,10 @@
                 const userProyectos = user.proyectos || [];
 
                 // Obtener todos los proyectos disponibles SOLO desde los arrays 'proyectos' de usuarios
-                // Excluir valores que corresponden a áreas/roles, no a proyectos reales
-                const AREAS_CONOCIDAS = ['ADMINISTRATIVO', 'ADMINISTRATIVOS', 'CONTABILIDAD', 'MARKETING',
-                    'OBRA', 'OBRAS', 'POSTVENTA', 'PROYECTOS', 'GERENCIA', 'LOGISTICA', 'SISTEMAS'];
+                // Los valores en ese array son proyectos configurados por el admin (ej: ADMINISTRATIVO, CARABAYLLO, etc.)
                 const todosProyectos = [...new Set(
                     usuarios.flatMap(u => u.proyectos || [])
-                )].filter(p => p && p.trim() && !AREAS_CONOCIDAS.includes(p.toUpperCase().trim())).sort();
+                )].filter(p => p && p.trim()).sort();
 
                 const proyectosHtml = todosProyectos.map(nombre => `
                     <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
@@ -1631,9 +1629,11 @@
                     </label>
                 `).join('');
 
-                // Email: SOLO el campo 'email' del doc user (guardado al crear en Auth)
-                // NO usar emailTo que es el correo del destinatario/contacto, no del usuario
+                // Email: campo 'email' guardado en Firestore al crear el usuario
+                // Si está vacío, puede editarse haciendo click en Editar en esta tabla
                 const emailDisplay = user.email || '';
+                const emailStyle = emailDisplay ? 'width:180px; font-size:11px;' : 'width:180px; font-size:11px; background:#fff3cd; border:1px solid #f59e0b; color:#92400e;';
+                const emailPlaceholder = emailDisplay ? '-' : '⚠ Click Editar para agregar email';
 
                 row.innerHTML = `
                 <td>
@@ -1642,7 +1642,7 @@
                 <td style="text-align:center;">
                     <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled style="transform: scale(1.2);">
                 </td>
-                <td><input class="user-email read-only-input" value="${emailDisplay}" placeholder="-" readonly style="width:160px; font-size:11px;"></td>
+                <td><input class="user-email read-only-input" value="${emailDisplay}" placeholder="${emailPlaceholder}" readonly style="${emailStyle}" title="${emailDisplay || 'Sin email - haga clic en Editar para asignar el correo de acceso'}"></td>
                 <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
                 <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
@@ -1679,12 +1679,10 @@
             let proyectosParaMostrar;
             if (isAdmin) {
                 // Admin: recopilar todos los proyectos del array 'proyectos' de cualquier user
-                // Excluir nombres de áreas/roles que no son proyectos reales
-                const AREAS_EXCLUIR = ['ADMINISTRATIVO', 'ADMINISTRATIVOS', 'CONTABILIDAD', 'MARKETING',
-                    'OBRA', 'OBRAS', 'POSTVENTA', 'PROYECTOS', 'GERENCIA', 'LOGISTICA', 'SISTEMAS'];
+                // El admin puede tener 'ADMINISTRATIVO' como proyecto válido - no filtrar por nombre
                 const desdeUsuarios = usuarios.flatMap(u => u.proyectos || []);
                 proyectosParaMostrar = [...new Set([...desdeUsuarios, ...proyectosDelUsuario])]
-                    .filter(p => p && !AREAS_EXCLUIR.includes(p.toUpperCase().trim())).sort();
+                    .filter(Boolean).sort();
             } else {
                 proyectosParaMostrar = [...new Set(proyectosDelUsuario)].filter(Boolean);
             }
