@@ -1429,6 +1429,7 @@
                 listeners.push(onSnapshot(collection(db, "users"), s => {
                     usuarios = s.docs.map(d => ({ id: d.id, ...d.data() }));
                     renderUsersTable();
+                    renderObrasDropdowns(); // Actualizar proyectos de admins que dependen de los usuarios
                 }));
             }
 
@@ -2017,8 +2018,10 @@
             if (e.target.matches('.tab')) {
                 document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                el(`${e.target.dataset.view} -view`).classList.add('active');
+                el(`${e.target.dataset.view}-view`).classList.add('active');
                 e.target.classList.add('active');
+
+                if (e.target.dataset.view === 'revision') loadPendingReviews();
             }
         });
 
@@ -2079,7 +2082,6 @@
                 if (action === 'save-user') {
                     const userId = row.dataset.id;
                     const newName = row.querySelector('.user-nombres').value.trim();
-                    const newEmail = row.querySelector('.user-email').value.trim();
                     const newRole = row.querySelector('.user-rol').value;
                     const newEmpresaId = row.querySelector('.user-empresa').value;
 
@@ -2088,7 +2090,6 @@
 
                     await updateDoc(doc(db, "users", userId), {
                         nombres: newName,
-                        email: newEmail,
                         rol: newRole,
                         empresaId: newEmpresaId,
                         proyectos: selectedProjects,
@@ -2096,9 +2097,8 @@
                     });
 
                     row.classList.remove('is-editing');
-                    row.querySelectorAll('select, .user-nombres, .user-email, input[type="checkbox"]').forEach(input => input.disabled = true);
+                    row.querySelectorAll('select, .user-nombres, input[type="checkbox"]').forEach(input => input.disabled = true);
                     row.querySelector('.user-nombres').classList.add('read-only-input');
-                    row.querySelector('.user-email').classList.add('read-only-input');
                     row.querySelector('.edit-mode-btns').style.display = 'flex';
                     row.querySelector('.save-mode-btns').style.display = 'none';
                     alert('Perfil de usuario actualizado.');
