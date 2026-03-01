@@ -1462,6 +1462,9 @@
 
             activeProjectListener = onSnapshot(pettyCashRef, docSnap => {
                 activePettyCash = docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                if (activePettyCash && activePettyCash.status) {
+                    activePettyCash.status = activePettyCash.status.toUpperCase();
+                }
                 updateActiveBoxUI();
 
                 if (activePettyCash) {
@@ -2352,7 +2355,7 @@
                         ownerId: currentUserData.uid,
                         ownerName: currentUserData.nombres || currentUserData.email,
                         empresaId: currentUserData.empresaId || null,
-                        status: 'active',
+                        status: 'ACTIVA',
                         createdAt: serverTimestamp()
                     });
                     alert(`Caja ${newCajaNumero} iniciada para "${obraNombre}" con S / ${amount.toFixed(2)} `);
