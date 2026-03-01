@@ -546,7 +546,8 @@
 
         .data-table {
             width: 100%;
-            min-width: 1300px; /* Forzar overflow para que aparezca scroll horizontal */
+            min-width: 1300px;
+            /* Forzar overflow para que aparezca scroll horizontal */
             border-collapse: collapse;
             white-space: nowrap;
             font-size: 11px;
@@ -1188,7 +1189,10 @@
                     <div class="card-h">
                         <div style="display:flex; align-items:center;">
                             <b>Usuarios</b>
-                            <button id="import-auth-btn" class="btn ghost btn-sm" style="margin-left:15px; font-size:10px;" title="Importar JSON exportado desde Firebase Authentication para sincronizar correos">📥 Sincronizar Correos</button>
+                            <button id="import-auth-btn" class="btn ghost btn-sm"
+                                style="margin-left:15px; font-size:10px;"
+                                title="Importar JSON exportado desde Firebase Authentication para sincronizar correos">📥
+                                Sincronizar Correos</button>
                             <input type="file" id="import-auth-input" accept=".json" style="display:none;">
                         </div>
                         <div>
@@ -1556,7 +1560,7 @@
                 const dis = isActiva ? '' : 'disabled';
                 
                 row.innerHTML = `
-                <td title="${expenseDate}"><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
+                    < td title = "${expenseDate}" ><input type="date" data-field="date" value="${expenseDate}" ${dis}></td>
                 <td><select data-field="type" title="${esc(expense.type)}" ${dis}>
                     <option value="BOLETA"         ${expense.type === 'BOLETA' ? 'selected' : ''}>Boleta</option>
                     <option value="FACTURA"        ${expense.type === 'FACTURA' ? 'selected' : ''}>Factura</option>
@@ -1603,8 +1607,8 @@
             const initialAmount = activePettyCash?.initialAmount || 0;
             const balance = initialAmount - totalExpenses;
             const fmt = (n) => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            el('total-expenses').textContent = `S/ ${fmt(totalExpenses)}`;
-            el('balance').textContent = `S/ ${fmt(balance)}`;
+            el('total-expenses').textContent = `S / ${ fmt(totalExpenses) } `;
+            el('balance').textContent = `S / ${ fmt(balance) } `;
             el('balance').className = balance >= 0 ? 'positive' : 'negative';
         }
 
@@ -1615,13 +1619,13 @@
                 const row = document.createElement('tr');
                 row.dataset.id = pc.id;
                 row.innerHTML = `
-                <td>${pc.id}</td>
+                    < td > ${ pc.id }</td >
                 <td><input class="pc-description" value="${pc.descripcion || ''}"></td>
                 <td>
                     <button class="btn primary btn-sm" data-action="save-pc">Guardar</button>
                     <button class="btn danger btn-sm" data-action="delete-pc">Eliminar</button>
                 </td>
-            `;
+                `;
                 tbody.appendChild(row);
             });
         }
@@ -1630,7 +1634,7 @@
             const tbody = el('empresas-table-body');
             tbody.innerHTML = '';
             empresas.forEach(emp => {
-                tbody.innerHTML += `<tr data-id="${emp.id}"><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><td><button class="btn danger btn-sm" data-action="delete-empresa">Eliminar</button></td></tr>`;
+                tbody.innerHTML += `< tr data - id="${emp.id}" ><td>${emp.ruc}</td><td>${emp.nombre || emp.razon}</td><td><button class="btn danger btn-sm" data-action="delete-empresa">Eliminar</button></td></tr > `;
             });
         }
 
@@ -1640,7 +1644,7 @@
             usuarios.forEach(user => {
                 const row = document.createElement('tr');
                 row.dataset.id = user.id;
-                const empresaOptions = empresas.map(e => `<option value="${e.id}" ${e.id === user.empresaId ? 'selected' : ''}>${e.nombre || e.razon}</option>`).join('');
+                const empresaOptions = empresas.map(e => `< option value = "${e.id}" ${ e.id === user.empresaId ? 'selected' : '' }> ${ e.nombre || e.razon }</option > `).join('');
 
                 // Los proyectos son un array de strings (nombres) directamente en el doc user
                 const userProyectos = user.proyectos || [];
@@ -1652,10 +1656,10 @@
                 )].filter(p => p && p.trim()).sort();
 
                 const proyectosHtml = todosProyectos.map(nombre => `
-                    <label style="display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;">
+                    < label style = "display:flex; align-items:center; font-size:11px; margin-bottom:4px; gap:4px; white-space:nowrap;" >
                         <input type="checkbox" class="user-proyectos-cb" value="${nombre}" ${userProyectos.includes(nombre) ? 'checked' : ''} disabled>
-                        <span>${nombre}</span>
-                    </label>
+                            <span>${nombre}</span>
+                        </label>
                 `).join('');
 
                 // Email: campo 'email' guardado en Firestore al crear el usuario
@@ -1665,7 +1669,7 @@
                 const emailPlaceholder = emailDisplay ? '-' : '⚠ Click Editar para agregar email';
 
                 row.innerHTML = `
-                <td>
+                    < td >
                     <input class="user-nombres read-only-input" value="${user.nombres || user.nombre || ''}" placeholder="Nombre" readonly style="width:120px;">
                 </td>
                 <td style="text-align:center;">
@@ -1688,7 +1692,7 @@
                         <button class="btn ghost btn-sm" data-action="cancel-user">Cancelar</button>
                     </div>
                 </td>
-            `;
+                `;
                 tbody.appendChild(row);
             });
         }
@@ -1717,7 +1721,7 @@
             }
 
             // Cada proyecto es un string nombre; usamos el nombre como value tambien
-            const optionsHtml = proyectosParaMostrar.map(nombre => `<option value="${nombre}">${nombre}</option>`).join('');
+            const optionsHtml = proyectosParaMostrar.map(nombre => `< option value = "${nombre}" > ${ nombre }</option > `).join('');
 
             if (obraSelect) {
                 const currentVal = obraSelect.value;
@@ -1749,7 +1753,7 @@
                 const row = document.createElement('tr');
                 row.dataset.id = a.id;
                 row.innerHTML = `
-                    <td>${a.id || '-'}</td>
+                    < td > ${ a.id || '-' }</td >
                     <td><input class="obra-nombre" value="${a.nombre || ''}" readonly style="border:none; background:transparent;"></td>
                     <td>
                         <button class="btn primary btn-sm" data-action="edit-obra" style="padding:2px 6px;">Editar</button>
@@ -1765,7 +1769,7 @@
             const owners = [...new Set(historyBoxes.map(b => b.ownerName).filter(Boolean))];
             const currentVal = filterResponsable.value;
             filterResponsable.innerHTML = '<option value="">Todos los Responsables</option>' +
-                owners.map(name => `<option value="${name}">${name}</option>`).join('');
+                owners.map(name => `< option value = "${name}" > ${ name }</option > `).join('');
             filterResponsable.value = currentVal;
         }
 
@@ -1811,7 +1815,7 @@
                 sumSaldo += saldo;
 
                 tr.innerHTML = `
-                    <td>${box.cajaNumero || 'S/N'}</td>
+                    < td > ${ box.cajaNumero || 'S/N' }</td >
                     <td>${closeDate}</td>
                     <td>${box.obraNombre || 'General'}</td>
                     <td>${box.ownerName || box.ownerId}</td>
@@ -1827,11 +1831,11 @@
             });
 
             const elTotalAsignado = el('hist-total-asignado');
-            if (elTotalAsignado) elTotalAsignado.textContent = `S/ ${sumAsignado.toFixed(2)}`;
+            if (elTotalAsignado) elTotalAsignado.textContent = `S / ${ sumAsignado.toFixed(2) } `;
             const elTotalGastado = el('hist-total-gastado');
-            if (elTotalGastado) elTotalGastado.textContent = `S/ ${sumGastado.toFixed(2)}`;
+            if (elTotalGastado) elTotalGastado.textContent = `S / ${ sumGastado.toFixed(2) } `;
             const elSaldoFinal = el('hist-saldo-final');
-            if (elSaldoFinal) elSaldoFinal.textContent = `S/ ${sumSaldo.toFixed(2)}`;
+            if (elSaldoFinal) elSaldoFinal.textContent = `S / ${ sumSaldo.toFixed(2) } `;
         }
 
         // --- BANDEJA DE REVISIÓN (VB RESIDENTE) ---
@@ -1872,7 +1876,7 @@
                         const saldo = initial - total;
 
                         tr.innerHTML = `
-                            <td>${box.cajaNumero || 'S/N'}</td>
+                    < td > ${ box.cajaNumero || 'S/N' }</td >
                             <td>${sendDate}</td>
                             <td>${box.obraNombre || 'General'}</td>
                             <td>${box.ownerName || box.ownerId}</td>
@@ -1883,7 +1887,7 @@
                                 <button class="btn primary btn-sm action-approve" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Cerrar VB</button>
                                 <button class="btn danger btn-sm action-reject" data-id="${box.id}" style="font-size:11px; padding:3px 6px;">Rechazar</button>
                             </td>
-                        `;
+                `;
                         tbody.appendChild(tr);
                     });
                 }
@@ -1956,7 +1960,7 @@
                 batch.delete(pettyCashRef);
                 await batch.commit();
 
-                alert(`Caja ${activeData.cajaNumero} ha sido CERRADA y aprobada definitivamente.`);
+                alert(`Caja ${ activeData.cajaNumero } ha sido CERRADA y aprobada definitivamente.`);
                 loadPendingReviews();
             } catch (error) {
                 console.error("Error al aprobar caja:", error);
@@ -1976,10 +1980,10 @@
                 const status = activePettyCash.status || 'ACTIVA';
                 const isActiva = status === 'ACTIVA';
                 
-                el('caja-chica-number').textContent = `Caja N° ${activePettyCash.cajaNumero}`;
-                el('caja-chica-status').textContent = `Estado: ${status}`;
+                el('caja-chica-number').textContent = `Caja N° ${ activePettyCash.cajaNumero } `;
+                el('caja-chica-status').textContent = `Estado: ${ status } `;
                 el('caja-chica-status').style.color = isActiva ? 'var(--ok)' : (status === 'EN REVISION' ? '#eab308' : 'var(--muted)');
-                if (obraInfo) obraInfo.textContent = activePettyCash.obraNombre ? `Obra: ${activePettyCash.obraNombre}` : '';
+                if (obraInfo) obraInfo.textContent = activePettyCash.obraNombre ? `Obra: ${ activePettyCash.obraNombre } ` : '';
 
                 initialAmountInput.value = (activePettyCash.initialAmount || 0).toFixed(2);
                 initialAmountInput.disabled = true;
@@ -2036,7 +2040,7 @@
             if (e.target.matches('.tab')) {
                 document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                el(`${e.target.dataset.view}-view`).classList.add('active');
+                el(`${ e.target.dataset.view } -view`).classList.add('active');
                 e.target.classList.add('active');
             }
         });
@@ -2161,7 +2165,7 @@
                 alert('No hay gastos para eliminar.');
                 return;
             }
-            if (!confirm(`¿Está seguro de ELIMINAR TODOS los ${expenses.length} gastos de esta caja chica de forma irreversible?`)) return;
+            if (!confirm(`¿Está seguro de ELIMINAR TODOS los ${ expenses.length } gastos de esta caja chica de forma irreversible ? `)) return;
 
             toggleLoading(true);
             try {
@@ -2189,33 +2193,33 @@
 
             let logText = `=================================================\n`;
             logText += ` REPOSITORIO DE LOGS DE EXTRACCIÓN - CAJA CHICA\n`;
-            logText += ` Fecha de generación: ${new Date().toLocaleString()}\n`;
+            logText += ` Fecha de generación: ${ new Date().toLocaleString() } \n`;
             logText += `=================================================\n\n`;
 
             const successLogs = extractionLogs.filter(l => l.status === 'ok');
             const warnLogs = extractionLogs.filter(l => l.status === 'warn');
             const errorLogs = extractionLogs.filter(l => l.status === 'error');
 
-            logText += `[✓] PROCESADOS EXITOSAMENTE (${successLogs.length}):\n`;
+            logText += `[✓] PROCESADOS EXITOSAMENTE(${ successLogs.length }): \n`;
             successLogs.forEach(log => {
-                logText += `  - Archivo: ${log.file}\n    Detalle: ${log.detail}\n`;
+                logText += `  - Archivo: ${ log.file } \n    Detalle: ${ log.detail } \n`;
             });
 
-            logText += `\n[⚠️] OMITIDOS / ADVERTENCIAS (${warnLogs.length}):\n`;
+            logText += `\n[⚠️]OMITIDOS / ADVERTENCIAS(${ warnLogs.length }): \n`;
             warnLogs.forEach(log => {
-                logText += `  - Archivo: ${log.file}\n    Detalle: ${log.detail}\n`;
+                logText += `  - Archivo: ${ log.file } \n    Detalle: ${ log.detail } \n`;
             });
 
-            logText += `\n[❌] ERRORES (${errorLogs.length}):\n`;
+            logText += `\n[❌]ERRORES(${ errorLogs.length }): \n`;
             errorLogs.forEach(log => {
-                logText += `  - Archivo: ${log.file}\n    Detalle: ${log.detail}\n`;
+                logText += `  - Archivo: ${ log.file } \n    Detalle: ${ log.detail } \n`;
             });
 
             const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `logs_extraccion_${new Date().getTime()}.txt`;
+            a.download = `logs_extraccion_${ new Date().getTime() }.txt`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -2270,7 +2274,7 @@
                     await setDoc(doc(db, 'partidasContables', codigo), { descripcion });
                     el('new-pc-code').value = '';
                     el('new-pc-description').value = '';
-                    alert(`Partida contable ${codigo} guardada.`);
+                    alert(`Partida contable ${ codigo } guardada.`);
                 } catch (error) {
                     console.error("Error al agregar PC:", error);
                     alert("No se pudo agregar la Partida Contable.");
@@ -2318,7 +2322,7 @@
                         }
                     });
                     await batch.commit();
-                    alert(`Se han importado/actualizado ${count} Partidas de Control exitosamente.`);
+                    alert(`Se han importado / actualizado ${ count } Partidas de Control exitosamente.`);
                 } catch (error) {
                     console.error("Error al importar PCs:", error);
                     alert("Error al importar el archivo: " + error.message);
@@ -2359,7 +2363,7 @@
                         const newCount = (counterDoc.exists() ? counterDoc.data().count : 0) + 1;
                         transaction.set(counterRef, { count: newCount, obraNombre: obraNombre }, { merge: true });
                         // Formato: CCH-0001 (secuencial por proyecto)
-                        return `CCH-${String(newCount).padStart(4, '0')}`;
+                        return `CCH - ${ String(newCount).padStart(4, '0') } `;
                     });
 
                     const cajaId = getActiveCajaId();
@@ -2374,7 +2378,7 @@
                         status: 'active',
                         createdAt: serverTimestamp()
                     });
-                    alert(`Caja ${newCajaNumero} iniciada para "${obraNombre}" con S/ ${amount.toFixed(2)}`);
+                    alert(`Caja ${ newCajaNumero } iniciada para "${obraNombre}" con S / ${ amount.toFixed(2) } `);
                 } catch (error) {
                     console.error("Error al iniciar caja:", error);
                     alert("No se pudo iniciar la caja.\n\nError: " + error.message + "\n\nVerifique que las reglas de Firebase estén actualizadas (ver firebase-rules-update.md)");
@@ -2402,7 +2406,7 @@
                         alert("El monto debe ser un número mayor a 0.");
                         return;
                     }
-                    if (confirm(`¿Actualizar el monto inicial a S/ ${newAmount.toFixed(2)}?`)) {
+                    if (confirm(`¿Actualizar el monto inicial a S / ${ newAmount.toFixed(2) }?`)) {
                         toggleLoading(true);
                         try {
                             const cajaId = getActiveCajaId();
@@ -2435,70 +2439,70 @@
                 toggleLoading(true);
                 try {
                     const cajaId = getActiveCajaId();
-                    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-                    const fileRef = ref(storage, `caja_chica_comprobantes/${cajaId}/${fileName}`);
-                    const snapshot = await uploadBytes(fileRef, file);
-                    const fileUrl = await getDownloadURL(snapshot.ref);
+                    const fileName = `${ Date.now() }_${ file.name.replace(/\s+/g, '_') } `;
+                    const fileRef = ref(storage, `caja_chica_comprobantes / ${ cajaId }/${fileName}`);
+            const snapshot = await uploadBytes(fileRef, file);
+            const fileUrl = await getDownloadURL(snapshot.ref);
 
-                    await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), { fileUrl });
-                    alert("Archivo adjuntado correctamente.");
-                } catch (error) {
-                    console.error("Error al subir archivo:", error);
-                    alert("Error al subir el comprobante.");
-                }
-                toggleLoading(false);
-                e.target.value = '';
-                return;
+            await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), { fileUrl });
+            alert("Archivo adjuntado correctamente.");
+        } catch (error) {
+            console.error("Error al subir archivo:", error);
+            alert("Error al subir el comprobante.");
+        }
+        toggleLoading(false);
+        e.target.value = '';
+        return;
             }
 
-            if (e.target.matches('input, select') && e.target.type !== 'file') {
-                const row = e.target.closest('tr');
-                const expenseId = row.dataset.id;
-                const field = e.target.dataset.field;
-                let value = e.target.value;
-                if (e.target.type === 'date') value = e.target.valueAsDate;
-                if (e.target.type === 'number') value = parseFloat(value) || 0;
+        if (e.target.matches('input, select') && e.target.type !== 'file') {
+            const row = e.target.closest('tr');
+            const expenseId = row.dataset.id;
+            const field = e.target.dataset.field;
+            let value = e.target.value;
+            if (e.target.type === 'date') value = e.target.valueAsDate;
+            if (e.target.type === 'number') value = parseFloat(value) || 0;
 
-                const updateData = { [field]: value };
+            const updateData = { [field]: value };
 
-                // Tipo de documento actual
-                const typeInput = row.querySelector('[data-field="type"]');
-                const currentType = field === 'type' ? value : (typeInput ? typeInput.value : 'FACTURA');
-                const hasIGV = currentType === 'FACTURA' || currentType === 'NOTA DE CREDITO';
+            // Tipo de documento actual
+            const typeInput = row.querySelector('[data-field="type"]');
+            const currentType = field === 'type' ? value : (typeInput ? typeInput.value : 'FACTURA');
+            const hasIGV = currentType === 'FACTURA' || currentType === 'NOTA DE CREDITO';
 
-                if (field === 'type') {
-                    const totalInput = row.querySelector('[data-field="total"]');
-                    const currentTotal = totalInput ? (parseFloat(totalInput.value) || 0) : 0;
-                    if (hasIGV) {
-                        updateData.subtotal = currentTotal / 1.18;
-                        updateData.igv = currentTotal - updateData.subtotal;
-                    } else {
-                        updateData.subtotal = currentTotal;
-                        updateData.igv = 0;
-                    }
-                } else if (field === 'total') {
-                    if (hasIGV) {
-                        updateData.subtotal = value / 1.18;
-                        updateData.igv = value - updateData.subtotal;
-                    } else {
-                        updateData.subtotal = value;
-                        updateData.igv = 0;
-                    }
-                } else if (field === 'subtotal') {
-                    if (hasIGV) {
-                        updateData.igv = value * 0.18;
-                        updateData.total = value + updateData.igv;
-                    } else {
-                        updateData.igv = 0;
-                        updateData.total = value;
-                    }
+            if (field === 'type') {
+                const totalInput = row.querySelector('[data-field="total"]');
+                const currentTotal = totalInput ? (parseFloat(totalInput.value) || 0) : 0;
+                if (hasIGV) {
+                    updateData.subtotal = currentTotal / 1.18;
+                    updateData.igv = currentTotal - updateData.subtotal;
+                } else {
+                    updateData.subtotal = currentTotal;
+                    updateData.igv = 0;
                 }
-
-                try {
-                    const cajaId = getActiveCajaId();
-                    await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), updateData);
-                } catch (error) { console.error("Error al actualizar gasto:", error); }
+            } else if (field === 'total') {
+                if (hasIGV) {
+                    updateData.subtotal = value / 1.18;
+                    updateData.igv = value - updateData.subtotal;
+                } else {
+                    updateData.subtotal = value;
+                    updateData.igv = 0;
+                }
+            } else if (field === 'subtotal') {
+                if (hasIGV) {
+                    updateData.igv = value * 0.18;
+                    updateData.total = value + updateData.igv;
+                } else {
+                    updateData.igv = 0;
+                    updateData.total = value;
+                }
             }
+
+            try {
+                const cajaId = getActiveCajaId();
+                await updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), updateData);
+            } catch (error) { console.error("Error al actualizar gasto:", error); }
+        }
         });
 
         el('expenses-table-body').addEventListener('click', async e => {
@@ -2929,8 +2933,8 @@
                     let type = 'FACTURA'; // default
                     // REGLA: El tipo se determina por el TEXTO del encabezado del PDF
                     // Normalizamos los espacios porque a veces dice "FACTURA\nELECTRÓNICA"
-                    const cleanTextForType = fText.replace(/\s+/g, ' '); 
-                    
+                    const cleanTextForType = fText.replace(/\s+/g, ' ');
+
                     if (cleanTextForType.includes('RECIBO POR HONORARIO')) {
                         type = 'RXH'; // RxH no tiene IGV
                     } else if (cleanTextForType.includes('NOTA DE CR')) {
@@ -3200,6 +3204,50 @@
             toggleLoading(false);
             event.target.value = '';
         }
+        // --- IMPORTACIÓN MASIVA DE CORREOS DESDE FIREBASE AUTH (JSON) ---
+        el('import-auth-btn').addEventListener('click', () => el('import-auth-input').click());
+        el('import-auth-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                const usersArr = data.users || [];
+                if (!usersArr.length) {
+                    alert("El JSON no tiene un array 'users' válido.");
+                    return;
+                }
+
+                toggleLoading(true);
+                const batch = writeBatch(db);
+                let count = 0;
+
+                for (const authUser of usersArr) {
+                    const uid = authUser.localId || authUser.uid;
+                    const email = authUser.email;
+                    if (uid && email) {
+                        const usr = usuarios.find(u => u.id === uid);
+                        if (usr && !usr.email) {
+                            batch.update(doc(db, "users", uid), { email: email });
+                            count++;
+                        }
+                    }
+                }
+
+                if (count > 0) {
+                    await batch.commit();
+                    alert(`¡Éxito! Se actualizaron ${count} correos desde el JSON de Auth.`);
+                } else {
+                    alert("No se encontraron correos nuevos para actualizar. O los usuarios ya tienen el correo en Firestore o el JSON no hizo match con sus UID.");
+                }
+            } catch (err) {
+                console.error("Error al procesar JSON:", err);
+                alert("Error al leer el archivo JSON. Verifica el formato.");
+            } finally {
+                e.target.value = '';
+                toggleLoading(false);
+            }
+        });
 
         // --- FUNCIÓN EXPORTACIÓN A EXCELJS (Formato Litoral) ---
         async function exportCajaToExcel(boxId) {
