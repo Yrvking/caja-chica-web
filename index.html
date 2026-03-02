@@ -3099,11 +3099,10 @@
                     }
 
                     // ── SERIE Y NÚMERO ──────────────────────────────────────────────
-                    const cleanTextForSeries = fullText.replace(/EBIZ[-_][A-Z0-9]+/gi, ' ');
-                    const seriesMatch = cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{3}[-]\s*\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{2}[-]\s*\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b([FBECR][-][A-Z0-9]{3}[-]\s*\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b(\d{3,4}[-]\s*\d{1,8})\b/i);
+                    const cleanTextForSeries = fullText.replace(/EBIZ[-_][A-Z0-9]+/gi, ' ').replace(/Nro(?:[°\.]|\s*:)?\s*/gi, '');
+                    const seriesMatch = cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{2,3}\s*[-]\s*\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b([FBECR][-]\s*[A-Z0-9]{3}\s*[-]\s*\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b(\d{3,4}\s*[-]\s*\d{1,8})\b/i);
 
                     let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase().replace(/\s+/g, '') : '';
                     if (seriesNumber && /^B/i.test(seriesNumber) && type === 'FACTURA') {
@@ -3115,7 +3114,8 @@
                     let dateMatched = false;
                     if (type === 'RXH') {
                         const months = { 'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5, 'julio': 6, 'agosto': 7, 'septiembre': 8, 'setiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11 };
-                        const strDateMatch = fullText.match(/Fecha de emisión\s+(\d{1,2})\s+de\s+([a-zA-Z]+)\s+del?\s+(\d{4})/i);
+                        // RXH puede decir "Fecha de emisión 23 de diciembre" o "Lima, 23 de diciembre de 2025"
+                        const strDateMatch = fullText.match(/(?:Fecha de emisi[oó]n|Lima(?:[,\s]*))?\s*(\d{1,2})\s+de\s+([a-zA-Z]+)\s+del?\s+(\d{4})/i);
                         if (strDateMatch) {
                             const m = months[strDateMatch[2].toLowerCase()];
                             if (m !== undefined) {
