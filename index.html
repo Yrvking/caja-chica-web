@@ -2857,20 +2857,46 @@
                     }
 
                     // ── Tipo
-                    let tipo = isCreditNote ? 'NOTA DE CREDITO' : (isRetentionDoc ? 'RXH' : 'FACTURA');
-                    if (isRetentionDoc) { igv = 0; subtotal = total; }
+                    let tipo = 'FACTURA';
+                    let isRxH = false;
 
-                    // ── Verificar si es RxH por código de impuesto SUNAT:
-                    // EXA (exonerado), OTH (inafecto), RET (retención) = sin IGV = RxH u honorario
-                    // GV = con IGV = FACTURA o BOLETA
-                    // Solo documentos que NO son facturas/boletas por naturaleza deben revisarse
-                    if (!isRetentionDoc && !isCreditNote) {
+                    // Identificar tipo explícito
+                    const invoiceTypeCode = getFirstText('InvoiceTypeCode');
+                    if (isCreditNote) {
+                        tipo = 'NOTA DE CREDITO';
+                    } else if (isRetentionDoc) {
+                        tipo = 'RXH';
+                        isRxH = true;
+                    } else if (invoiceTypeCode === '01') {
+                        // 01 = Recibo por Honorarios en algunos sistemas de emisión de SUNAT
+                        tipo = 'RXH';
+                        isRxH = true;
+                    } else if (invoiceTypeCode === '03') {
+                        tipo = 'BOLETA';
+                    } else if (invoiceTypeCode === '07') {
+                        tipo = 'NOTA DE CREDITO';
+                    } else if (invoiceTypeCode === '08') {
+                        tipo = 'NOTA DE DEBITO';
+                    }
+
+                    // Fallback por texto en la descripción o nota general
+                    const globalNote = getFirstText('Note');
+                    if (!isRxH && globalNote && globalNote.toUpperCase().includes('HONORARIO')) {
+                        tipo = 'RXH';
+                        isRxH = true;
+                    }
+
+                    if (isRxH) { igv = 0; subtotal = total; }
+
+                    // ── Verificar si es RxH o Exonerado por código de impuesto SUNAT (Fallback 2):
+                    if (!isRxH && !isCreditNote && tipo === 'FACTURA') {
                         const taxCatIds = getByTag('TaxCategory').flatMap(tc => getByTag('ID', tc));
-                        const hasIGV = taxCatIds.some(n => n.textContent.trim() === 'VAT' || n.textContent.trim() === 'S');
-                        const isExoOrInaf = taxCatIds.some(n => ['OTH', 'RET', 'E', 'O'].includes(n.textContent.trim()));
-                        // Si no hay IGV categoría VAT pero hay exonerado/inafecto = RxH o sin IGV
+                        const hasIGV = taxCatIds.some(n => n.textContent.trim() === 'VAT' || n.textContent.trim() === 'S' || n.textContent.trim() === '1000');
+                        const isExoOrInaf = taxCatIds.some(n => ['OTH', 'RET', 'E', 'O', 'FRE', 'EXO', 'INA'].includes(n.textContent.trim().toUpperCase()));
+
                         if (!hasIGV && isExoOrInaf) {
-                            tipo = 'RXH'; igv = 0; subtotal = total;
+                            // Podría ser Factura sin IGV o RxH. Lo dejamos como estaba pero sin IGV.
+                            igv = 0; subtotal = total;
                         }
                     }
 
