@@ -2858,25 +2858,29 @@
                     const invoiceTypeCode = getFirstText('InvoiceTypeCode');
                     if (isCreditNote || invoiceTypeCode === '07') {
                         tipo = 'NOTA DE CREDITO';
-                    } else if (isRetentionDoc) {
-                        tipo = 'RXH';
-                        isRxH = true;
-                    } else if (invoiceTypeCode === '01') {
-                        tipo = 'FACTURA'; // 01 es Oficialmente Factura Comercial en SUNAT
                     } else if (invoiceTypeCode === '03') {
                         tipo = 'BOLETA';
                     } else if (invoiceTypeCode === '08') {
                         tipo = 'NOTA DE DEBITO';
-                    }
-
-                    // Fallback para RXH: muchos Recibos x Honorarios se serializan como Invoice 01
-                    // pero siempre tienen la palabra "HONORARIO" en Note, Description o CustomizationID
-                    const globalNote = getFirstText('Note');
-                    if (!isRxH && globalNote && globalNote.toUpperCase().includes('HONORARIO')) {
+                    } else if (invoiceTypeCode === '02') {
                         tipo = 'RXH';
                         isRxH = true;
                     }
-                    if (!isRxH && descripcion && descripcion.toUpperCase().includes('HONORARIO')) {
+
+                    // ── Regla estricta del Excel Macro (.bas) para detectar Recibos por Honorarios:
+                    // Buscar en TaxCategory el ID 'RET 4TA' o similar, y que el Percent sea 8.00
+                    const allPercents = getByTag('Percent');
+                    for (const p of allPercents) {
+                        const val = p.textContent.trim();
+                        if (val === '8.00' || val === '8') {
+                            tipo = 'RXH';
+                            isRxH = true;
+                            break;
+                        }
+                    }
+
+                    // Regla heredada inamovible (si la etiqueta principal del recibo electrónico es Retention)
+                    if (isRetentionDoc) {
                         tipo = 'RXH';
                         isRxH = true;
                     }
