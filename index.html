@@ -2856,26 +2856,27 @@
 
                     // Identificar tipo explícito
                     const invoiceTypeCode = getFirstText('InvoiceTypeCode');
-                    if (isCreditNote) {
+                    if (isCreditNote || invoiceTypeCode === '07') {
                         tipo = 'NOTA DE CREDITO';
                     } else if (isRetentionDoc) {
                         tipo = 'RXH';
                         isRxH = true;
                     } else if (invoiceTypeCode === '01') {
-                        // 01 = Recibo por Honorarios en algunos sistemas de emisión de SUNAT
-                        tipo = 'RXH';
-                        isRxH = true;
+                        tipo = 'FACTURA'; // 01 es Oficialmente Factura Comercial en SUNAT
                     } else if (invoiceTypeCode === '03') {
                         tipo = 'BOLETA';
-                    } else if (invoiceTypeCode === '07') {
-                        tipo = 'NOTA DE CREDITO';
                     } else if (invoiceTypeCode === '08') {
                         tipo = 'NOTA DE DEBITO';
                     }
 
-                    // Fallback por texto en la descripción o nota general
+                    // Fallback para RXH: muchos Recibos x Honorarios se serializan como Invoice 01
+                    // pero siempre tienen la palabra "HONORARIO" en Note, Description o CustomizationID
                     const globalNote = getFirstText('Note');
                     if (!isRxH && globalNote && globalNote.toUpperCase().includes('HONORARIO')) {
+                        tipo = 'RXH';
+                        isRxH = true;
+                    }
+                    if (!isRxH && descripcion && descripcion.toUpperCase().includes('HONORARIO')) {
                         tipo = 'RXH';
                         isRxH = true;
                     }
