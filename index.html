@@ -1237,9 +1237,7 @@
         <div class="login-card" style="max-width: 450px;">
             <h3>Crear Nuevo Usuario</h3>
             <div class="form-group"><label>Nombres</label><input type="text" id="new-user-names"></div>
-            <div class="form-group" style="margin-top:8px" style="display:none;"><label>Email Funcional</label><input
-                    type="email" id="new-user-email" placeholder="Para Auth interno">
-            </div>
+
             <div class="form-group" style="margin-top:8px"><label>Contraseña</label><input type="password"
                     id="new-user-pass"></div>
             <div class="form-group" style="margin-top:8px">
@@ -1656,10 +1654,6 @@
                     <td>
                     <input class="user-nombres read-only-input" value="${user.nombres || user.nombre || ''}" placeholder="Nombre" readonly style="width:120px;">
                 </td>
-                <td style="text-align:center;">
-                    <input type="checkbox" class="user-cc-activo" ${user.cajaChicaActivo ? 'checked' : ''} disabled style="transform: scale(1.2);">
-                </td>
-                <td><select class="user-empresa" disabled style="width:140px;"><option value="">Ninguna</option>${empresaOptions}</select></td>
                 <td><select class="user-rol" disabled style="width:90px;"><option value="USUARIO" ${user.rol === 'USUARIO' ? 'selected' : ''}>Usuario</option><option value="ADMIN" ${user.rol === 'ADMIN' ? 'selected' : ''}>Admin</option><option value="RESIDENTE" ${user.rol === 'RESIDENTE' ? 'selected' : ''}>Residente</option></select></td>
                 <td>
                     <div style="max-height:80px; overflow-y:auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#f9f9f9; display:flex; flex-direction:column; min-width:140px;">
@@ -3565,24 +3559,30 @@
 
         el('btn-create-user')?.addEventListener('click', async () => {
             const name = el('new-user-names').value.trim();
-            const email = el('new-user-email').value.trim();
             const pass = el('new-user-pass').value.trim();
             const rol = el('new-user-role').value;
             const activo = el('new-user-cc-active').value === 'true';
 
-            if (!name || !email || !pass) { alert("Debe completar nombres, email y contraseña."); return; }
+            if (!name || !pass) { alert("Debe completar nombres y contraseña."); return; }
             if (pass.length < 6) { alert("La contraseña debe tener al menos 6 caracteres."); return; }
 
+            // Generar un correo electrónico ficticio pero único para usar auth de Firebase.
+            const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const randomTail = Math.floor(Math.random() * 9999);
+            const generatedEmail = `${safeName}${randomTail}@cajachica.local`;
+
+            el('btn-create-user').disabled = true;
+            el('btn-create-user').textContent = 'Creando...';
             toggleLoading(true);
             try {
                 // Secondary auth sign up (no desloguea al admin)
-                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+                const userCredential = await createUserWithEmailAndPassword(secondaryAuth, generatedEmail, pass);
                 const newUid = userCredential.user.uid;
 
                 // Firestore doc entry
                 await setDoc(doc(db, "users", newUid), {
                     nombres: name,
-                    email: email,
+                    email: generatedEmail, // Guarda este correo interno porque aún se necesita el atributo
                     rol: rol,
                     cajaChicaActivo: activo,
                     proyectos: [],
@@ -3592,7 +3592,6 @@
                 alert("Usuario creado correctamente. Ahora busque el usuario en la tabla y dele Editar para asignar sus Proyectos.");
                 el('user-modal-overlay').style.display = 'none';
                 el('new-user-names').value = '';
-                el('new-user-email').value = '';
                 el('new-user-pass').value = '';
             } catch (e) {
                 console.error("Error creando usaurio:", e);
