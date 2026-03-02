@@ -3004,26 +3004,45 @@
                     const fullText = lines.join('\n');
                     console.log('PDF TEXT SAMPLE:', fullText.substring(0, 600));
 
+                    // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
+                    const fText = fullText.toUpperCase();
+                    let type = 'FACTURA'; // default
+                    // REGLA: El tipo se determina por el TEXTO del encabezado del PDF
+                    const cleanTextForType = fText.replace(/\s+/g, ' ');
+
+                    if (cleanTextForType.includes('RECIBO POR HONORARIO')) {
+                        type = 'RXH';
+                    } else if (cleanTextForType.includes('NOTA DE CR')) {
+                        type = 'NOTA DE CREDITO';
+                    } else if (cleanTextForType.includes('BOLETA DE VENTA') || cleanTextForType.includes('BOLETA ELECTR')) {
+                        type = 'BOLETA';
+                    } else if (cleanTextForType.includes('FACTURA ELECTR') || cleanTextForType.includes('FACTURA DE VENTA') || cleanTextForType.includes('FACTURA COMERCIAL')) {
+                        type = 'FACTURA';
+                    }
+
                     // ── RUC del EMISOR (proveedor) ──────────────────────────────────
-                    // SUNAT: RUC de 11 dígitos que empieza en 10 o 20
                     const allRucs = [...fullText.matchAll(/\b((?:20|10)\d{9})\b/g)].map(m => m[1]);
-                    // El RUC del emisor suele aparecer antes que el del receptor
                     const ruc = allRucs[0] || '';
 
                     // ── RAZÓN SOCIAL del EMISOR ─────────────────────────────────────
-                    // ESTRATEGIA: buscar LÍNEA POR LÍNEA (nunca join) para no cruzar bordes
-                    // Un join(' ') une "SISTEMA 10 S.A.C." con "AV. SAN BORJA..." → regex falla
                     let razonSocial = '';
-                    {
+                    if (type === 'RXH') {
+                        // En RxH, el nombre está casi siempre en la primera línea antes del RUC del emisor
+                        const rxhNameMatch = fullText.match(/^\s*(.+?)\s+R\.?U\.?C\.?\s*\d{11}/i);
+                        if (rxhNameMatch) {
+                            razonSocial = rxhNameMatch[1].trim();
+                        } else {
+                            const fallbackMatch = fullText.match(/^([a-zA-ZÁÉÍÓÚÑ\s]+)\s+R/i);
+                            if (fallbackMatch) razonSocial = fallbackMatch[1].trim();
+                            else razonSocial = 'Proveedor RXH';
+                        }
+                    } else {
                         // 'adquiriente' es la empresa RECEPTORA/CLIENTE — ignorar esas líneas
                         const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|adquiriente|datos\s+del|\ba\s*:|\bpara\b)/i;
-                        // Patrón de dirección → fin del nombre de empresa
                         const direccionRE = /^\s*(?:AV\.|JR\.|CAL\.|PJE\.|URB\.|MZ\.|LT\.|INT\.|NRO\.|C\.C\.|LIMA|SAN\s|LOS\s|LAS\s)/i;
                         const docTypeLine = /^(?:FACTURA|BOLETA|RECIBO|NOTA\s+DE|LIQUIDACI|RUC[:\s\.]|FECHA|SERIE|N[°º]|EMITIDO|DIRECCI|IMPORTE|TOTAL|ITEM|BIEN)/i;
-                        // Sufijo legal que termina el nombre de empresa
                         const LEGAL_RE = /((?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|S\.A\b)[.,]?)/i;
 
-                        // Extraer nombre hasta el primer sufijo legal (cortar lo que venga después)
                         const extractUntilLegal = (line) => {
                             const m = line.match(/(^[\w\s&.,'-]{2,60}?)(S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|\bS\.A\b)/i);
                             if (m) {
@@ -3036,30 +3055,26 @@
                                 .replace(/\s+JR\.\s.*/i, '').trim();
                         };
 
-                        // Buscar línea por línea en las primeras 30
                         for (let idx = 0; idx < Math.min(lines.length, 30); idx++) {
                             const raw = lines[idx].trim();
                             if (raw.length < 3) continue;
-                            if (/^[\d\s\/:.,()%-]+$/.test(raw)) continue;  // solo números
+                            if (/^[\d\s\/:.,()%-]+$/.test(raw)) continue;
                             if (docTypeLine.test(raw)) continue;
-                            if (clienteRE.test(raw)) break;  // llegamos al receptor
-                            if (direccionRE.test(raw)) continue;  // es dirección, saltar
+                            if (clienteRE.test(raw)) break;
+                            if (direccionRE.test(raw)) continue;
 
-                            // Si la línea contiene el RUC del emisor, extraer texto ANTES del RUC
                             let lineToCheck = raw;
                             if (ruc && raw.includes(ruc)) {
                                 const beforeRucText = raw.split(ruc)[0].trim();
-                                // Limpiar 'RUC N°' u otras etiquetas previas
                                 const cleanedBefore = beforeRucText.replace(/\bRUC\b\s*N?°?\s*$/i, '').trim();
                                 if (cleanedBefore.length >= 3 && /[A-Za-záéíóúÁÉÍÓÚñÑ]{3,}/.test(cleanedBefore)) {
                                     razonSocial = extractUntilLegal(cleanedBefore);
                                     break;
                                 } else {
-                                    continue; // solo el RUC, saltar
+                                    continue;
                                 }
                             }
 
-                            // Si la línea contiene un sufijo legal → extraer nombre hasta ahí
                             if (LEGAL_RE.test(raw)) {
                                 const candidate = extractUntilLegal(raw);
                                 if (candidate.length >= 3) {
@@ -3069,7 +3084,6 @@
                             }
                         }
 
-                        // Fallback: primera línea con texto significativo (MAYUSCULAS, sin números puros)
                         if (!razonSocial) {
                             const docLabels = /^(?:RUC|FACTURA|BOLETA|RECIBO|BIEN|FECHA|EMITIDO|NOTA|LIQUIDACION|IMPORTE|TOTAL|SON:|N°)/i;
                             const candidate = lines.slice(0, 20).find(l =>
@@ -3085,72 +3099,60 @@
                     }
 
                     // ── SERIE Y NÚMERO ──────────────────────────────────────────────
-                    // Formato SUNAT: [F|B|E|R|C|N][A-Z0-9]{3}-[0-9]{1,8} y físicos 001-12345
-                    // Ejemplos: F001-00001, FI25-019126, B001-00001, E001-00001, 1001-00001
-                    // A veces EBIZ se cuela (ej. EBIZ-0123), así que ignoramos
-
-                    // Limpiar el texto previamente de EBIZ para que no ensucie regex
                     const cleanTextForSeries = fullText.replace(/EBIZ[-_][A-Z0-9]+/gi, ' ');
+                    const seriesMatch = cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{3}[-]\s*\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{2}[-]\s*\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b([FBECR][-][A-Z0-9]{3}[-]\s*\d{1,8})\b/i)
+                        || cleanTextForSeries.match(/\b(\d{3,4}[-]\s*\d{1,8})\b/i);
 
-                    const seriesMatch = cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{3}[-]\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{2}[-]\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b([FBECR][-][A-Z0-9]{3}[-]\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b(\d{3,4}[-]\d{1,8})\b/i); // Series físicas 001-123 o 1001-1234
-                    let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase() : '';
-
-                    // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
-                    const fText = fullText.toUpperCase();
-                    let type = 'FACTURA'; // default
-                    // REGLA: El tipo se determina por el TEXTO del encabezado del PDF
-                    // Normalizamos los espacios porque a veces dice "FACTURA\nELECTRÓNICA"
-                    const cleanTextForType = fText.replace(/\s+/g, ' ');
-
-                    if (cleanTextForType.includes('RECIBO POR HONORARIO')) {
-                        type = 'RXH'; // RxH no tiene IGV
-                    } else if (cleanTextForType.includes('NOTA DE CR')) {
-                        type = 'NOTA DE CREDITO';
-                    } else if (cleanTextForType.includes('BOLETA DE VENTA') || cleanTextForType.includes('BOLETA ELECTR')) {
+                    let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase().replace(/\s+/g, '') : '';
+                    if (seriesNumber && /^B/i.test(seriesNumber) && type === 'FACTURA') {
                         type = 'BOLETA';
-                    } else if (cleanTextForType.includes('FACTURA ELECTR') || cleanTextForType.includes('FACTURA DE VENTA') || cleanTextForType.includes('FACTURA COMERCIAL')) {
-                        type = 'FACTURA'; // tiene IGV 18%
-                    } else if (seriesNumber && /^B/i.test(seriesNumber)) {
-                        type = 'BOLETA'; // solo B... como fallback
                     }
 
                     // ── FECHA ────────────────────────────────────────────────────────
-                    const dateMatch = fullText.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/)
-                        || fullText.match(/(\d{4})[\/-](\d{2})[\/-](\d{2})/);
                     let date = new Date();
-                    if (dateMatch) {
-                        const [_, p1, p2, p3] = dateMatch;
-                        date = p1.length === 4
-                            ? new Date(`${p1}-${p2}-${p3}T12:00:00Z`)
-                            : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
-                        if (isNaN(date.getTime())) date = new Date();
+                    let dateMatched = false;
+                    if (type === 'RXH') {
+                        const months = { 'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5, 'julio': 6, 'agosto': 7, 'septiembre': 8, 'setiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11 };
+                        const strDateMatch = fullText.match(/Fecha de emisión\s+(\d{1,2})\s+de\s+([a-zA-Z]+)\s+del?\s+(\d{4})/i);
+                        if (strDateMatch) {
+                            const m = months[strDateMatch[2].toLowerCase()];
+                            if (m !== undefined) {
+                                date = new Date(parseInt(strDateMatch[3]), m, parseInt(strDateMatch[1]), 12, 0, 0);
+                                dateMatched = true;
+                            }
+                        }
                     }
+                    if (!dateMatched) {
+                        const dateMatch = fullText.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/)
+                            || fullText.match(/(\d{4})[\/-](\d{2})[\/-](\d{2})/);
+                        if (dateMatch) {
+                            const [_, p1, p2, p3] = dateMatch;
+                            date = p1.length === 4
+                                ? new Date(`${p1}-${p2}-${p3}T12:00:00Z`)
+                                : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
+                        }
+                    }
+                    if (isNaN(date.getTime())) date = new Date();
 
                     // ── MONEDA del comprobante ─────────────────────────────────────
-                    // Detectar moneda ANTES de buscar montos para saber el símbolo a usar
                     let monedaPDF = 'PEN'; // default soles
                     {
                         const fU = fullText.toUpperCase();
-                        // Campo explícito "Moneda: $" o "Moneda: USD" en el PDF
                         const monMatch = fullText.match(/Moneda[:\s]+([\$S\/USD]{1,3})/i);
                         if (monMatch) {
                             const sym = monMatch[1].trim();
                             if (sym === '$' || sym.toUpperCase() === 'USD' || sym === 'US$') monedaPDF = 'USD';
                             else if (sym === 'S/' || sym === 'S/.' || sym.toUpperCase() === 'PEN') monedaPDF = 'PEN';
                         } else {
-                            // Detectar por texto libre: "DÓLARES AMERICANOS", "DOLARES", currenct $
-                            if (fU.includes('DÓLAR') || fU.includes('DOLAR') || fU.includes('USD')
-                                || fU.includes('CUATROCIENTOS') && fU.includes('DÓLARES')) {
+                            if (fU.includes('DÓLAR') || fU.includes('DOLAR') || fU.includes('USD') || (fU.includes('CUATROCIENTOS') && fU.includes('DÓLARES'))) {
                                 monedaPDF = 'USD';
                             }
                         }
                     }
 
                     // ── MONTOS — acepta S/ (soles) y $ (dólares) ────────────────
-                    // Símbolo de moneda: S/, S/., $ o USD
                     const MON = '(?:S\\/\\.?|\\$|USD)\\s*';
                     const getAmount = (...patterns) => {
                         for (const pat of patterns) {
@@ -3160,22 +3162,47 @@
                         return 0;
                     };
 
-                    let total = getAmount(
-                        new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|TOTAL\\s+VENTA|PRECIO\\s+TOTAL)[\\s\\S]{0,40}${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                        new RegExp(`TOTAL[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                        new RegExp(`${MON}([\\d]{1,6}\\.\\d{2})\\s*(?:$|\\n)`, 'im')
-                    );
-                    let igv = getAmount(
-                        // SUNAT: I.G.V. 18% S/ xxx.xx
-                        new RegExp(`I\\.?G\\.?V\\.?[:\\s(]*(?:18\\s*%)?[)\\s]*${MON}\\s*([\\d,]+\\.\\d{2})`, 'i'),
-                        /IGV[:\s]+S\/\.?\s*(\d[\d,]+\.\d{2})/i,
-                        /IGV[\s:]+([\d,]+\.\d{2})/i,
-                        /18\s*%[\s:]*S\/\.?\s*([\d,]+\.\d{2})/i
-                    );
-                    let subtotal = getAmount(
-                        new RegExp(`(?:OP(?:ERACI[OÓ]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada|MONTO\\s+ANTES|VALOR\\s+NETO)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                        new RegExp(`Op\\.\\s*Gravada[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
-                    );
+                    let total = 0, subtotal = 0, igv = 0;
+                    if (type === 'RXH') {
+                        const rxhTotalMatch = fullText.match(/Total Neto Recibido:\s*([\d,]+\.\d{2})/i) || fullText.match(/Total por honorarios:\s*([\d,]+\.\d{2})/i);
+                        if (rxhTotalMatch) {
+                            total = parseFloat(rxhTotalMatch[1].replace(/,/g, ''));
+                        } else {
+                            // Fallback numérico sin sufijos
+                            const rawMatch = fullText.match(/Total Neto Recibido:\s*\S*\s*([\d,]+\.\d{2})/i);
+                            if (rawMatch) total = parseFloat(rawMatch[1].replace(/,/g, ''));
+                        }
+
+                        // Retención
+                        const retMatch = fullText.match(/Retenci[oó]n\s*\(8\s*%\)\s*I?R?:\s*\(?([\d,]+\.\d{2})\)?/i);
+                        let retencion = retMatch ? parseFloat(retMatch[1].replace(/,/g, '')) : 0;
+                        if (retencion > 0) subtotal = parseFloat((total + retencion).toFixed(2));
+                        else subtotal = total;
+                        igv = 0;
+                    } else {
+                        total = getAmount(
+                            new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|TOTAL\\s+VENTA|PRECIO\\s+TOTAL)[\\s\\S]{0,40}${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                            new RegExp(`TOTAL[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                            new RegExp(`${MON}([\\d]{1,6}\\.\\d{2})\\s*(?:$|\\n)`, 'im')
+                        );
+                        igv = getAmount(
+                            new RegExp(`I\\.?G\\.?V\\.?[:\\s(]*(?:18\\s*%)?[)\\s]*${MON}\\s*([\\d,]+\\.\\d{2})`, 'i'),
+                            /IGV[:\s]+S\/\.?\s*(\d[\d,]+\.\d{2})/i,
+                            /IGV[\s:]+([\d,]+\.\d{2})/i,
+                            /18\s*%[\s:]*S\/\.?\s*([\d,]+\.\d{2})/i
+                        );
+                        subtotal = getAmount(
+                            new RegExp(`(?:OP(?:ERACI[OÓ]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada|MONTO\\s+ANTES|VALOR\\s+NETO)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
+                            new RegExp(`Op\\.\\s*Gravada[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
+                        );
+
+                        // Reglas de IGV
+                        if (subtotal && !igv) igv = parseFloat((subtotal * 0.18).toFixed(2));
+                        if (igv && !subtotal) subtotal = parseFloat((total - igv).toFixed(2));
+                        if (!igv && total) igv = parseFloat((total / 1.18 * 0.18).toFixed(2));
+                        if (!subtotal && igv) subtotal = parseFloat((total - igv).toFixed(2));
+                        if (!total && subtotal) { igv = parseFloat((subtotal * 0.18).toFixed(2)); total = parseFloat((subtotal + igv).toFixed(2)); }
+                    }
 
                     // ── Validar duplicados ──────────────────────────────────────
                     if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
@@ -3183,20 +3210,6 @@
                         extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
                         duplicateCount++;
                         continue;
-                    }
-
-                    // ── Reglas de IGV por tipo de documento ─────────────────────
-                    if (type === 'RXH' || type === 'MOVILIDAD') {
-                        // Sin IGV: el total es el monto bruto
-                        igv = 0;
-                        subtotal = total;
-                    } else {
-                        // FACTURA / BOLETA / NOTA DE CREDITO → IGV 18% siempre
-                        if (subtotal && !igv) igv = parseFloat((subtotal * 0.18).toFixed(2));
-                        if (igv && !subtotal) subtotal = parseFloat((total - igv).toFixed(2));
-                        if (!igv && total) igv = parseFloat((total / 1.18 * 0.18).toFixed(2));
-                        if (!subtotal && igv) subtotal = parseFloat((total - igv).toFixed(2));
-                        if (!total && subtotal) { igv = parseFloat((subtotal * 0.18).toFixed(2)); total = parseFloat((subtotal + igv).toFixed(2)); }
                     }
 
                     // ── DESCRIPCIÓN: extraer y humanizar items del detalle ────────
@@ -3235,7 +3248,14 @@
                         return w;
                     }).join(' ');
 
-                    if (detailHeaderIdx >= 0) {
+                    if (type === 'RXH') {
+                        const rxhDescMatch = fullText.match(/Por concepto de[:\s]+([\s\S]+?)(?:Observaci[oó]n|Inciso|Fecha de emisi[oó]n)/i);
+                        if (rxhDescMatch) {
+                            descripcion = rxhDescMatch[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                        } else {
+                            descripcion = 'Honorarios profesionales importados';
+                        }
+                    } else if (detailHeaderIdx >= 0) {
                         const endIdx = totalesIdx > detailHeaderIdx ? totalesIdx : lines.length;
                         const rawDetail = lines.slice(detailHeaderIdx + 1, endIdx);
 
