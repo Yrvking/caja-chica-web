@@ -1004,6 +1004,8 @@
                                         <th data-sort="igv">IGV<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="total">Total<i class="sort-arrow">⇅</i></th>
                                         <th data-sort="moneda">Mon.<i class="sort-arrow">⇅</i></th>
+                                        <th data-sort="tasaCambio" title="Tipo de Cambio">T.C.<i
+                                                class="sort-arrow">⇅</i></th>
                                         <th data-sort="observacion">Observación<i class="sort-arrow">⇅</i></th>
                                         <th>Acciones</th>
                                     </tr>
@@ -1570,6 +1572,7 @@
                     <option value="USD" ${expense.moneda === 'USD' ? 'selected' : ''}>USD</option>
                     <option value="EUR" ${expense.moneda === 'EUR' ? 'selected' : ''}>EUR</option>
                 </select></td>
+                <td title="Tipo de Cambio"><input type="number" data-field="tasaCambio" value="${(expense.tasaCambio || 1.000).toFixed(3)}" step="0.001" style="width:55px; text-align:right; font-size:11px;" ${dis}></td>
                 <td title="${esc(expense.observacion)}"><input type="text" data-field="observacion" value="${esc(expense.observacion)}" placeholder="Opcional..." ${dis}></td>
                 <td style="padding:2px 3px; white-space:nowrap;">
                     <div style="display:flex; align-items:center; gap:2px; justify-content:center;">
@@ -1588,7 +1591,10 @@
 
         function updateSummary() {
             const totalExpenses = expenses.reduce((sum, exp) => {
-                const amount = exp.total || 0;
+                let amount = exp.total || 0;
+                if ((exp.moneda === 'USD' || exp.moneda === 'EUR') && exp.tasaCambio) {
+                    amount = amount * exp.tasaCambio;
+                }
                 return exp.type === 'NOTA DE CREDITO' ? sum - amount : sum + amount;
             }, 0);
 
@@ -2156,17 +2162,13 @@
                     const userId = row.dataset.id;
                     const newName = row.querySelector('.user-nombres').value.trim();
                     const newRole = row.querySelector('.user-rol').value;
-                    const newEmpresaId = row.querySelector('.user-empresa').value;
 
                     const selectedProjects = Array.from(row.querySelectorAll('.user-proyectos-cb:checked')).map(cb => cb.value);
-                    const isActivo = row.querySelector('.user-cc-activo').checked;
 
                     await updateDoc(doc(db, "users", userId), {
                         nombres: newName,
                         rol: newRole,
-                        empresaId: newEmpresaId,
-                        proyectos: selectedProjects,
-                        cajaChicaActivo: isActivo
+                        proyectos: selectedProjects
                     });
 
                     row.classList.remove('is-editing');
@@ -3461,29 +3463,40 @@
                 const wb = new ExcelJS.Workbook();
                 const ws = wb.addWorksheet('Caja Chica');
 
-                // Formato Litoral: Establecer anchos de columna (A-K)
+                // Formato Litoral: Establecer anchos de columna y fuente (A-K)
                 ws.columns = [
-                    { key: 'A', width: 4 },
-                    { key: 'B', width: 5 },
-                    { key: 'C', width: 12 },
-                    { key: 'D', width: 15 },
-                    { key: 'E', width: 40 },
-                    { key: 'F', width: 45 },
-                    { key: 'G', width: 12 },
-                    { key: 'H', width: 15 },
-                    { key: 'I', width: 10 },
-                    { key: 'J', width: 15 },
-                    { key: 'K', width: 25 },
+                    { key: 'A', width: 4, style: { font: { size: 8 } } },
+                    { key: 'B', width: 5, style: { font: { size: 8 } } },
+                    { key: 'C', width: 12, style: { font: { size: 8 } } },
+                    { key: 'D', width: 15, style: { font: { size: 8 } } },
+                    { key: 'E', width: 40, style: { font: { size: 8 } } },
+                    { key: 'F', width: 45, style: { font: { size: 8 } } },
+                    { key: 'G', width: 12, style: { font: { size: 8 } } },
+                    { key: 'H', width: 15, style: { font: { size: 8 } } },
+                    { key: 'I', width: 10, style: { font: { size: 8 } } },
+                    { key: 'J', width: 15, style: { font: { size: 8 } } },
+                    { key: 'K', width: 25, style: { font: { size: 8 } } },
                 ];
 
                 // Cabecera General
                 ws.getCell('C2').value = (box.empresaId && empresas.find(e => e.id === box.empresaId)?.razon || "EMPRESA LOCAL").toUpperCase();
-                ws.getCell('C2').font = { bold: true };
+                ws.getCell('C2').font = { bold: true, size: 8 };
+
+                // Cálculos de totales y saldo en soles
+                let initialAmount = parseFloat(box.initialAmount) || 0;
+                let totalExpensesSoles = boxExpenses.reduce((sum, exp) => {
+                    let amount = parseFloat(exp.total) || 0;
+                    if ((exp.moneda === 'USD' || exp.moneda === 'EUR') && exp.tasaCambio) {
+                        amount = amount * exp.tasaCambio;
+                    }
+                    return exp.type === 'NOTA DE CREDITO' ? sum - amount : sum + amount;
+                }, 0);
+                let saldoCaja = initialAmount - totalExpensesSoles;
 
                 ws.getCell('C3').value = `RUC: ${box.empresaId && empresas.find(e => e.id === box.empresaId)?.ruc || ""}`;
-                ws.getCell('I3').value = "MONTO ENTREGADO  :";
+                ws.getCell('I3').value = "MONTO ENTREGADO :";
                 ws.getCell('I3').alignment = { horizontal: 'right' };
-                ws.getCell('J3').value = box.initialAmount || 0;
+                ws.getCell('J3').value = initialAmount;
                 ws.getCell('J3').numFmt = '#,##0.00';
 
                 // Fecha de exportación
@@ -3491,20 +3504,20 @@
                 ws.getCell('C4').value = `FECHA : ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
 
                 ws.getCell('G4').value = `CAJA ${box.cajaNumero ? box.cajaNumero.replace('CCH-', '') : ''}`;
-                ws.getCell('G4').font = { bold: true };
+                ws.getCell('G4').font = { bold: true, size: 8 };
                 ws.getCell('G4').alignment = { horizontal: 'center' };
 
-                ws.getCell('I4').value = "SALDO ANTERIOR: ";
+                ws.getCell('I4').value = "TOTAL GASTADO :";
                 ws.getCell('I4').alignment = { horizontal: 'right' };
-                ws.getCell('J4').value = 0; // Se asume 0 para este bloque
+                ws.getCell('J4').value = totalExpensesSoles;
                 ws.getCell('J4').numFmt = '#,##0.00';
 
-                ws.getCell('I5').value = "TOTAL:";
-                ws.getCell('I5').font = { bold: true };
+                ws.getCell('I5').value = "SALDO :";
+                ws.getCell('I5').font = { bold: true, size: 8 };
                 ws.getCell('I5').alignment = { horizontal: 'right' };
-                ws.getCell('J5').value = box.initialAmount || 0;
+                ws.getCell('J5').value = saldoCaja;
                 ws.getCell('J5').numFmt = '#,##0.00';
-                ws.getCell('J5').font = { bold: true };
+                ws.getCell('J5').font = { bold: true, size: 8 };
 
                 ws.getCell('B6').value = `CAJA N° ${box.cajaNumero || ''}`;
                 ws.getCell('B8').value = `OBRA : ${box.obraNombre?.toUpperCase() || ''}`;
@@ -3517,7 +3530,7 @@
                 tableHeaders.forEach((th, idx) => {
                     const cell = ws.getCell(startRow, idx + 2); // De B (2) a K (11)
                     cell.value = th;
-                    cell.font = { bold: true };
+                    cell.font = { bold: true, size: 8 };
                     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
                     cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
                 });
@@ -3530,6 +3543,12 @@
                     const parsedDate = exp.date?.seconds ? new Date(exp.date.seconds * 1000) : new Date();
                     const dateStr = `${parsedDate.getDate().toString().padStart(2, '0')}/${(parsedDate.getMonth() + 1).toString().padStart(2, '0')}/${parsedDate.getFullYear()}`;
 
+                    let totalRowSoles = parseFloat(exp.total) || 0;
+                    if ((exp.moneda === 'USD' || exp.moneda === 'EUR') && exp.tasaCambio) {
+                        totalRowSoles = totalRowSoles * exp.tasaCambio;
+                    }
+                    if (exp.type === 'NOTA DE CREDITO') totalRowSoles = -totalRowSoles;
+
                     const values = [
                         i + 1,
                         dateStr,
@@ -3539,7 +3558,7 @@
                         exp.pc,
                         exp.seriesNumber,
                         exp.type,
-                        exp.total || 0,
+                        totalRowSoles,
                         exp.observacion || ''
                     ];
 
