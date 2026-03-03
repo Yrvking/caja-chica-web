@@ -2517,6 +2517,26 @@
 
                 const updateData = { [field]: value };
 
+                // Consultar API SUNAT si se cambia la fecha de un USD o se cambia la moneda a USD
+                if (field === 'moneda' || field === 'date') {
+                    const currentMoneda = field === 'moneda' ? value : (row.querySelector('[data-field="moneda"]')?.value || 'PEN');
+                    if (currentMoneda === 'USD') {
+                        const dateInput = row.querySelector('[data-field="date"]')?.value;
+                        const dateObj = (field === 'date' && value instanceof Date) ? value : (dateInput ? new Date(dateInput + 'T12:00:00') : new Date());
+
+                        // Consultar API en segundo plano
+                        fetchSunatExchangeRate(dateObj).then(tc => {
+                            if (tc) {
+                                const tcInput = row.querySelector('[data-field="tasaCambio"]');
+                                if (tcInput) tcInput.value = tc.toFixed(3);
+                                const cajaId = getActiveCajaId();
+                                updateDoc(doc(db, "cajasChicasActivas", cajaId, "expenses", expenseId), { tasaCambio: tc })
+                                    .catch(err => console.error(err));
+                            }
+                        });
+                    }
+                }
+
                 // Tipo de documento actual
                 const typeInput = row.querySelector('[data-field="type"]');
                 const currentType = field === 'type' ? value : (typeInput ? typeInput.value : 'FACTURA');
@@ -2732,6 +2752,26 @@
 
         // --- NUEVA LÓGICA PARA EXTRACCIÓN DE XML ---
         el('xml-btn').addEventListener('click', () => el('xml-file-input').click());
+        async function fetchSunatExchangeRate(dateObj) {
+            try {
+                const year = dateObj.getFullYear();
+                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(dateObj.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+
+                const response = await fetch(`https://api.apis.net.pe/v1/tipo-cambio-sunat?fecha=${dateStr}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.venta) {
+                        return parseFloat(data.venta);
+                    }
+                }
+            } catch (err) {
+                console.warn("No se pudo obtener el tipo de cambio SUNAT:", err);
+            }
+            return null;
+        }
+
         el('xml-file-input').addEventListener('change', handleXmlFiles);
 
         async function handleXmlFiles(event) {
@@ -2924,6 +2964,15 @@
                             pc: autoPc,
                             createdAt: serverTimestamp()
                         };
+
+                        let monedaXML = getFirstText('DocumentCurrencyCode') || 'PEN';
+                        expenseData.moneda = monedaXML;
+                        expenseData.tasaCambio = 1.000;
+                        if (monedaXML === 'USD') {
+                            const tc = await fetchSunatExchangeRate(parsedDate);
+                            if (tc) expenseData.tasaCambio = tc;
+                        }
+
                         const cajaId = getActiveCajaId();
                         const newExpenseRef = doc(collection(db, "cajasChicasActivas", cajaId, "expenses"));
                         batch.set(newExpenseRef, expenseData);
@@ -3340,6 +3389,12 @@
                             type, moneda: monedaPDF, pc: '', fileUrl: null,
                             createdAt: serverTimestamp()
                         };
+
+                        expenseData.tasaCambio = 1.000;
+                        if (monedaPDF === 'USD') {
+                            const tc = await fetchSunatExchangeRate(date);
+                            if (tc) expenseData.tasaCambio = tc;
+                        }
 
                         const cajaId = getActiveCajaId();
                         try {
