@@ -2479,8 +2479,13 @@
                         const counterDoc = await transaction.get(counterRef);
                         const newCount = (counterDoc.exists() ? counterDoc.data().count : 0) + 1;
                         transaction.set(counterRef, { count: newCount, obraNombre: obraNombre }, { merge: true });
-                        // Formato: CCH-0001 (secuencial por proyecto)
-                        return `CCH - ${String(newCount).padStart(4, '0')} `;
+                        // Formato: CC-{PROYECTO}-{AÑO}-{NNNNN} — identificador único global
+                        // Ejemplo: CC-LITORAL-26-00001
+                        const prefix = obraNombre.toUpperCase()
+                            .replace(/[^A-Z0-9\s]/g, '').trim()
+                            .split(/\s+/)[0].substring(0, 8);
+                        const yy = new Date().getFullYear().toString().slice(-2);
+                        return `CC-${prefix}-${yy}-${String(newCount).padStart(5, '0')}`;
                     });
 
                     const cajaId = getActiveCajaId();
