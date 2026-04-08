@@ -7,6 +7,7 @@
     <title>Sistema de Caja Chica v2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <style>
         /* ═══════════════════════════════════════════════════════════════
@@ -65,15 +66,13 @@
             font-size: 13px;
             line-height: 1.5;
             min-height: 100vh;
-            padding: 16px 24px;
-            display: flex;
-            justify-content: center;
+            padding: 0;
         }
 
         .app {
             width: 100%;
-            max-width: 1400px;
-            margin: 0 auto;
+            box-sizing: border-box;
+            padding: 0 0 24px 0;
         }
 
         .topbar {
@@ -546,8 +545,7 @@
 
         .data-table {
             width: 100%;
-            min-width: 1300px;
-            /* Forzar overflow para que aparezca scroll horizontal */
+            min-width: 1060px;
             border-collapse: collapse;
             white-space: nowrap;
             font-size: 11px;
@@ -565,7 +563,6 @@
             letter-spacing: 0.04em;
             overflow: hidden;
             text-overflow: ellipsis;
-            resize: horizontal;
             position: relative;
             cursor: pointer;
             user-select: none;
@@ -858,6 +855,54 @@
             margin-bottom: 16px;
             line-height: 1.4;
         }
+
+        /* ───────────────────────────────────────────────────────────────
+           RESPONSIVE — adaptable a cualquier navegador y ancho de pantalla
+           ─────────────────────────────────────────────────────────────── */
+
+        /* Pantallas grandes / fullHD (≥1025px) */
+        @media (min-width: 1025px) {
+            .brand              { padding: 10px 24px; }
+            .tabs               { padding: 8px 24px 0; }
+            .card-b             { padding: 20px 24px; }
+            .summary-container  { padding: 16px 24px; }
+        }
+
+        /* Tablets / portátiles (769px – 1024px) */
+        @media (max-width: 1024px) {
+            .brand              { padding: 8px 16px; }
+            .tabs               { padding: 6px 16px 0; }
+            .card-b             { padding: 16px 16px; }
+            .summary-container  { padding: 12px 16px; grid-template-columns: repeat(3, 1fr); }
+            .data-table         { font-size: 10.5px; }
+        }
+
+        /* Tablets angostas / landscape (601px – 900px) */
+        @media (max-width: 900px) {
+            .summary-container  { grid-template-columns: repeat(2, 1fr); }
+            .actions-container  { gap: 6px; }
+            .btn                { padding: 7px 10px; font-size: 12px; }
+        }
+
+        /* Móvil (≤600px) */
+        @media (max-width: 600px) {
+            .brand              { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 12px; }
+            .brand-right        { flex-wrap: wrap; width: 100%; }
+            .tabs               { padding: 6px 10px 0; overflow-x: auto; flex-wrap: nowrap; gap: 2px; }
+            .tab                { padding: 8px 12px; font-size: 11px; }
+            .card-b             { padding: 12px 12px; }
+            .summary-container  { grid-template-columns: 1fr; padding: 10px 12px; gap: 8px; }
+            .actions-container  { gap: 5px; margin-bottom: 10px; }
+            .btn                { font-size: 11px; padding: 6px 8px; }
+            .data-table         { font-size: 10px; }
+        }
+
+        /* Pantallas muy pequeñas (≤400px) */
+        @media (max-width: 400px) {
+            .brand              { padding: 8px; }
+            .card-b             { padding: 8px; }
+            .btn                { padding: 5px 7px; font-size: 10.5px; }
+        }
     </style>
 </head>
 
@@ -974,7 +1019,9 @@
                         <div class="actions-container">
                             <button id="add-manual-btn" class="btn primary">+ Agregar Gasto Manual</button>
                             <button id="xml-btn" class="btn ghost">📄 Extraer de XML</button>
-                            <input type="file" id="xml-file-input" style="display: none;" accept=".xml" multiple>
+                            <input type="file" id="xml-file-input" style="display: none;" accept=".xml,.zip" multiple>
+                            <button id="xml-folder-btn" class="btn ghost" title="Seleccionar carpeta — extrae XML de todas las subcarpetas automáticamente" style="background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;">📁 Carpeta XML</button>
+                            <input type="file" id="xml-folder-input" style="display: none;" webkitdirectory multiple>
                             <button id="pdf-btn" class="btn ghost"
                                 style="background: #fef2f2; border-color: #fca5a5; color: #b91c1c;">📄 Extraer de
                                 PDF</button>
@@ -991,6 +1038,22 @@
                         </details>
                         <div style="overflow-x:auto;">
                             <table class="data-table" id="expenses-table">
+                                <colgroup>
+                                    <col style="width:5%">      <!-- Fecha       -->
+                                    <col style="width:5%">      <!-- Tipo Doc.   -->
+                                    <col style="width:7%">      <!-- Serie-Nº    -->
+                                    <col style="width:7%">      <!-- RUC         -->
+                                    <col style="width:9%">      <!-- Razón Social-->
+                                    <col style="width:9%">      <!-- PC          -->
+                                    <col>                       <!-- Descripción (ocupa el resto) -->
+                                    <col style="width:6%">      <!-- Subtotal    -->
+                                    <col style="width:5%">      <!-- IGV         -->
+                                    <col style="width:5.5%">    <!-- Total       -->
+                                    <col style="width:3.5%">    <!-- Mon.        -->
+                                    <col style="width:4%">      <!-- T.C.        -->
+                                    <col style="width:7%">      <!-- Observación -->
+                                    <col style="width:5%">      <!-- Acciones    -->
+                                </colgroup>
                                 <thead id="expenses-thead">
                                     <tr>
                                         <th data-sort="date">Fecha<i class="sort-arrow">⇅</i></th>
@@ -2049,6 +2112,7 @@
                 if (editBtn) editBtn.style.display = isActiva ? 'inline-flex' : 'none';
                 el('add-manual-btn').disabled = !isActiva;
                 el('xml-btn').disabled = !isActiva;
+                if (el('xml-folder-btn')) el('xml-folder-btn').disabled = !isActiva;
                 if (el('pdf-btn')) el('pdf-btn').disabled = !isActiva;
                 el('btn-close-box').disabled = !isActiva;
 
@@ -2071,6 +2135,7 @@
                 saveInitialAmountBtn.style.display = 'inline-flex';
                 el('add-manual-btn').disabled = true;
                 el('xml-btn').disabled = true;
+                if (el('xml-folder-btn')) el('xml-folder-btn').disabled = true;
                 if (el('pdf-btn')) el('pdf-btn').disabled = true;
                 el('btn-close-box').disabled = true;
             }
@@ -2750,8 +2815,55 @@
             canvas.addEventListener('touchend', stopDrawing);
         }
 
+        // --- Redimensionamiento de columnas ---
+        function initColumnResize(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const colgroup = table.querySelector('colgroup');
+            if (!colgroup) return;
+            const cols = Array.from(colgroup.querySelectorAll('col'));
+            const ths = Array.from(table.querySelectorAll('thead tr:first-child th'));
+
+            ths.forEach((th, i) => {
+                if (i >= ths.length - 1) return; // última columna sin handle
+                const handle = document.createElement('div');
+                handle.style.cssText = 'position:absolute;right:-2px;top:0;width:6px;height:100%;cursor:col-resize;z-index:2;';
+                th.appendChild(handle);
+
+                handle.addEventListener('mousedown', e => {
+                    // sincronizar anchos reales antes de empezar
+                    ths.forEach((t, j) => { if (cols[j]) cols[j].style.width = t.offsetWidth + 'px'; });
+                    const startX = e.pageX;
+                    const startW = cols[i] ? (parseInt(cols[i].style.width) || th.offsetWidth) : th.offsetWidth;
+
+                    const onMove = ev => {
+                        const newW = Math.max(30, startW + (ev.pageX - startX));
+                        if (cols[i]) cols[i].style.width = newW + 'px';
+                    };
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+        }
+        initColumnResize('expenses-table');
+
         // --- NUEVA LÓGICA PARA EXTRACCIÓN DE XML ---
         el('xml-btn').addEventListener('click', () => el('xml-file-input').click());
+        el('xml-folder-btn').addEventListener('click', () => el('xml-folder-input').click());
+        el('xml-folder-input').addEventListener('change', async (e) => {
+            const raw = Array.from(e.target.files).filter(f => /\.(xml|zip)$/i.test(f.name));
+            if (!raw.length) { alert('No se encontraron archivos XML ni ZIP en la carpeta seleccionada.'); e.target.value = ''; return; }
+            const xmlFiles = await gatherXmlFiles(raw);
+            if (!xmlFiles.length) { alert('No se encontraron XMLs dentro de los archivos seleccionados.'); e.target.value = ''; return; }
+            await processXmlFileList(xmlFiles);
+            e.target.value = '';
+        });
         const sunatTcCache = {};
 
         async function fetchSunatExchangeRate(dateObj) {
@@ -2805,176 +2917,231 @@
             return null;
         }
 
-        el('xml-file-input').addEventListener('change', handleXmlFiles);
+        el('xml-file-input').addEventListener('change', async (e) => {
+            const raw = Array.from(e.target.files).filter(f => /\.(xml|zip)$/i.test(f.name));
+            if (!raw.length) { e.target.value = ''; return; }
+            const xmlFiles = await gatherXmlFiles(raw);
+            if (xmlFiles.length) await processXmlFileList(xmlFiles);
+            e.target.value = '';
+        });
 
-        async function handleXmlFiles(event) {
-            const files = event.target.files;
-            if (files.length === 0 || !activePettyCash) return;
-            toggleLoading(true);
-            let processedCount = 0;
-            let duplicateCount = 0;
-            const batch = writeBatch(db);
-
-            for (const file of files) {
+        // Expande ZIPs extrayendo sus XMLs en memoria (sin escribir al disco).
+        // Los objetos File/Blob viven solo en RAM y el GC del browser los libera al salir de scope.
+        async function gatherXmlFiles(rawFiles) {
+            const xmlFiles = [];
+            const zipFiles = [];
+            for (const f of rawFiles) {
+                const ext = f.name.split('.').pop().toLowerCase();
+                if (ext === 'xml')      xmlFiles.push(f);
+                else if (ext === 'zip') zipFiles.push(f);
+            }
+            for (const zipFile of zipFiles) {
                 try {
-                    const xmlString = await file.text();
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlString, "application/xml");
+                    const zip = await JSZip.loadAsync(zipFile);
+                    const xmlEntries = Object.values(zip.files)
+                        .filter(e => !e.dir && e.name.split('.').pop().toLowerCase() === 'xml');
+                    for (const entry of xmlEntries) {
+                        const blob = await entry.async('blob');
+                        // Crear File en memoria con solo el nombre base (sin ruta interna del ZIP)
+                        const baseName = entry.name.split('/').pop();
+                        xmlFiles.push(new File([blob], baseName, { type: 'application/xml' }));
+                    }
+                } catch (err) {
+                    console.warn(`No se pudo leer ZIP ${zipFile.name}:`, err);
+                    extractionLogs.push({ file: zipFile.name, status: 'error', detail: 'No se pudo abrir el archivo ZIP.' });
+                }
+            }
+            return xmlFiles;
+        }
 
-                    if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
-                        console.error("Error al parsear XML:", file.name);
-                        alert(`El archivo ${file.name} no es un XML válido.`);
-                        continue;
+        async function processXmlFileList(files) {
+            if (!files.length || !activePettyCash) return;
+            toggleLoading(true);
+            let processedCount = 0, duplicateCount = 0, errorCount = 0;
+
+            // ── 1. Leer todos los archivos en paralelo ──────────────────────────
+            const reads = await Promise.all(
+                files.map(f => f.text().then(t => ({ f, t })).catch(() => ({ f, t: null })))
+            );
+
+            // ── 2. Parsear y extraer datos (sincrónico tras la lectura) ─────────
+            const pendingExpenses = [];
+
+            for (const { f: file, t: xmlString } of reads) {
+                if (!xmlString) {
+                    extractionLogs.push({ file: file.name, status: 'error', detail: 'No se pudo leer el archivo.' });
+                    errorCount++; continue;
+                }
+                try {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+
+                    if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                        extractionLogs.push({ file: file.name, status: 'error', detail: 'XML inválido o mal formado.' });
+                        errorCount++; continue;
                     }
 
-                    // ── Helper robusto: busca por nombre local ignorando namespace (cbc:, cac:, etc.)
-                    const getByTag = (tag, parent = xmlDoc) => Array.from(parent.getElementsByTagNameNS('*', tag));
+                    // Helper robusto: ignora namespaces (cbc:, cac:, etc.)
+                    const getByTag = (tag, parent = xmlDoc) => {
+                        const all = parent.getElementsByTagName('*');
+                        return Array.from(all).filter(el => el.localName === tag || (el.tagName && el.tagName.split(':').pop() === tag));
+                    };
                     const getFirstText = (tag, parent = xmlDoc) => {
                         const nodes = getByTag(tag, parent);
                         return nodes.length > 0 ? nodes[0].textContent.trim() : '';
                     };
 
-                    // ── Tipo de documento desde la raíz
-                    const rootTag = xmlDoc.documentElement.localName;
-                    const isCreditNote = rootTag === 'CreditNote';
-                    const isRetentionDoc = rootTag === 'Retention';
+                    const rootTag = xmlDoc.documentElement.localName || xmlDoc.documentElement.tagName.split(':').pop();
 
-                    // ── ID principal del comprobante (Serie-Número)
-                    // En UBL, el ID de la factura/nota es hijo directo de la raíz
-                    let idNode = Array.from(xmlDoc.documentElement.children)
-                        .find(c => c.localName === 'ID')?.textContent.trim();
-
-                    if (!idNode) {
-                        // Fallback: buscar el primer ID que parezca un formato de comprobante válido (ej. F001-1234, E001-12)
-                        const allIds = getByTag('ID');
-                        const validIdNode = Array.from(allIds).find(n => /^[A-Z0-9]{3,4}-\d{1,8}$/i.test(n.textContent.trim()));
-                        idNode = validIdNode ? validIdNode.textContent.trim() : (allIds.length > 0 ? allIds[0].textContent.trim() : '');
+                    // CDR → omitir
+                    if (rootTag === 'ApplicationResponse') {
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: 'CDR omitido (Constancia de Recepción SUNAT, no el comprobante).' });
+                        continue;
+                    }
+                    // Guía de Remisión → omitir (no es un gasto)
+                    if (rootTag === 'DespatchAdvice') {
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: 'Guía de Remisión omitida (no es un gasto).' });
+                        continue;
                     }
 
+                    const isCreditNote    = rootTag === 'CreditNote';
+                    const isDebitNote     = rootTag === 'DebitNote';
+                    const isRetentionDoc  = rootTag === 'Retention';
+                    const isPerceptionDoc = rootTag === 'PerceptionDocument';
+
+                    // ── ID del comprobante (Serie-Número) ──
+                    let idNode = Array.from(xmlDoc.documentElement.children)
+                        .find(c => (c.localName || c.tagName.split(':').pop()) === 'ID')?.textContent.trim();
+
                     if (!idNode) {
-                        console.warn(`${file.name}: sin ID principal, no es XML SUNAT válido.`);
+                        const allIds = getByTag('ID');
+                        const valid = allIds.find(n => /^[A-Z0-9]{3,4}-\d{1,8}$/i.test(n.textContent.trim()));
+                        idNode = valid ? valid.textContent.trim() : (allIds[0]?.textContent.trim() || '');
+                    }
+                    // Último recurso: extraer del nombre del archivo (formato SUNAT: RUC-TIPO-SERIE-NÚMERO.xml)
+                    if (!idNode) {
+                        const fnMatch = file.name.match(/\b([FBECR][A-Z0-9]{2,3}[-]\d{1,8})\b/i)
+                            || file.name.match(/[-]([FBECR][A-Z0-9]{2,3}[-]\d{1,8})[-.]/i);
+                        if (fnMatch) idNode = fnMatch[1].toUpperCase();
+                    }
+                    if (!idNode) {
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: 'Sin ID de comprobante válido, omitido.' });
                         continue;
                     }
                     const seriesNumber = idNode;
 
-                    // ── Fechas
+                    // ── Fecha ──
                     const issueDate = getFirstText('IssueDate');
                     const parsedDate = issueDate ? new Date(issueDate + 'T12:00:00Z') : new Date();
 
-                    // ── Proveedor (AccountingSupplierParty)
+                    // ── Proveedor ──
                     const supplierNodes = getByTag('AccountingSupplierParty');
                     let ruc = '', name = '';
                     if (supplierNodes.length > 0) {
                         const supplier = supplierNodes[0];
-                        // RUC: buscar ID dentro de PartyIdentification
                         const partyIdNodes = getByTag('PartyIdentification', supplier);
-                        if (partyIdNodes.length > 0) {
-                            ruc = getFirstText('ID', partyIdNodes[0]);
-                        }
+                        if (partyIdNodes.length > 0) ruc = getFirstText('ID', partyIdNodes[0]);
+                        if (!ruc) ruc = getFirstText('CompanyID', supplier);            // PartyLegalEntity > CompanyID
                         if (!ruc) ruc = getFirstText('CustomerAssignedAccountID', supplier);
-                        // Razón social: RegistrationName tiene priority, luego Name
                         let rawName = getFirstText('RegistrationName', supplier) || getFirstText('Name', supplier);
-                        // Limpiar: si el nombre contiene 'FACTURA ELECTRONICA', 'BOLETA', 'RECIBO', etc.
-                        // el XML a veces duplica el nombre pegado al tipo de doc — quedar solo con la primera parte
-                        rawName = rawName
-                            .replace(/\s*(FACTURA ELECTRONICA|BOLETA ELECTRONICA|NOTA DE CREDITO ELECTRONICA|RECIBO POR HONORARIOS ELECTRONICOS?).*$/i, '')
-                            .trim();
+                        rawName = rawName.replace(/\s*(FACTURA ELECTRONICA|BOLETA ELECTRONICA|NOTA DE CR[ÉE]DITO ELECTRONICA|RECIBO POR HONORARIOS ELECTRONICOS?).*$/i, '').trim();
                         name = rawName;
                     }
-                    // RUC para retenciones (AgentParty)
-                    if (!ruc && isRetentionDoc) {
+                    // Retención / Percepción: proveedor en AgentParty
+                    if (!ruc && (isRetentionDoc || isPerceptionDoc)) {
                         const agentNodes = getByTag('AgentParty');
                         if (agentNodes.length > 0) {
                             ruc = getFirstText('ID', agentNodes[0]);
                             name = getFirstText('RegistrationName', agentNodes[0]);
                         }
                     }
+                    // Validar formato RUC peruano
+                    if (ruc && !/^(20|10)\d{9}$/.test(ruc)) ruc = '';
 
-                    // ── Validar duplicados ──────────────────────────────────────
+                    // ── Duplicados ──
                     if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
-                        console.warn(`Duplicado omitido: ${file.name} (RUC: ${ruc}, Serie: ${seriesNumber})`);
-                        extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
-                        duplicateCount++;
-                        continue;
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: `DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya existen en esta caja.` });
+                        duplicateCount++; continue;
                     }
 
-                    // ── Montos
+                    // ── Montos ──
                     const legalTotal = getByTag('LegalMonetaryTotal');
                     let total = 0, subtotal = 0, igv = 0;
                     if (legalTotal.length > 0) {
-                        // PayableAmount = total con IGV (o monto a pagar)
-                        total = parseFloat(getFirstText('PayableAmount', legalTotal[0])) ||
-                            parseFloat(getFirstText('TaxInclusiveAmount', legalTotal[0])) || 0;
-                        // LineExtensionAmount = subtotal SIN IGV (base imponible)
-                        subtotal = parseFloat(getFirstText('LineExtensionAmount', legalTotal[0])) || 0;
+                        const lt = legalTotal[0];
+                        total    = parseFloat(getFirstText('PayableAmount', lt))      || parseFloat(getFirstText('TaxInclusiveAmount', lt))  || 0;
+                        subtotal = parseFloat(getFirstText('LineExtensionAmount', lt)) || parseFloat(getFirstText('TaxExclusiveAmount', lt)) || 0;
+                    } else {
+                        total = parseFloat(getFirstText('TotalInvoiceAmount')) || parseFloat(getFirstText('PayableAmount')) || 0;
                     }
-                    if (isRetentionDoc) {
-                        total = parseFloat(getFirstText('TotalInvoiceAmount')) || 0;
-                    }
-                    // IGV = TaxAmount del primer TaxTotal
+                    if ((isRetentionDoc || isPerceptionDoc) && total === 0) total = parseFloat(getFirstText('TotalInvoiceAmount')) || 0;
+
                     const taxNodes = getByTag('TaxTotal');
                     if (taxNodes.length > 0) igv = parseFloat(getFirstText('TaxAmount', taxNodes[0])) || 0;
-                    // Si el subtotal es 0, calcularlo como total - igv
                     if (!subtotal && total > 0) subtotal = parseFloat((total - igv).toFixed(2));
 
-                    // ── Descripción (primer línea)
-                    const lineNodes = getByTag(isCreditNote ? 'CreditNoteLine' : 'InvoiceLine');
-                    let descripcion = 'Gasto importado';
+                    // ── Descripción (compila hasta 3 líneas de detalle) ──
+                    const lineTag  = isCreditNote ? 'CreditNoteLine' : isDebitNote ? 'DebitNoteLine' : 'InvoiceLine';
+                    const lineNodes = getByTag(lineTag);
+                    let descripcion = '';
                     if (lineNodes.length > 0) {
-                        descripcion = getFirstText('Description', lineNodes[0]) ||
-                            getFirstText('Note', lineNodes[0]) || 'Gasto importado';
+                        const descs = lineNodes.slice(0, 3)
+                            .map(ln => getFirstText('Description', ln) || getFirstText('Note', ln) || '')
+                            .filter(Boolean);
+                        if (descs.length === 1) {
+                            descripcion = descs[0];
+                        } else if (descs.length > 1) {
+                            const extra = lineNodes.length > 3 ? ` (+${lineNodes.length - 3} más)` : '';
+                            descripcion = `${descs[0]} (${descs.slice(1).join(', ')}${extra})`;
+                        }
                     }
+                    if (!descripcion) descripcion = getFirstText('Note') || 'Gasto importado';
 
-                    // ── Tipo
+                    // ── Tipo de documento ──
                     let tipo = 'FACTURA';
                     let isRxH = false;
 
-                    // Identificar tipo explícito
                     const invoiceTypeCode = getFirstText('InvoiceTypeCode');
-                    if (isCreditNote || invoiceTypeCode === '07') {
-                        tipo = 'NOTA DE CREDITO';
-                    } else if (invoiceTypeCode === '03') {
-                        tipo = 'BOLETA';
-                    } else if (invoiceTypeCode === '08') {
-                        tipo = 'NOTA DE DEBITO';
-                    } else if (invoiceTypeCode === '02') {
-                        tipo = 'RXH';
-                        isRxH = true;
-                    }
+                    if      (isCreditNote     || invoiceTypeCode === '07') { tipo = 'NOTA DE CREDITO'; }
+                    else if (isDebitNote      || invoiceTypeCode === '08') { tipo = 'NOTA DE DEBITO'; }
+                    else if (invoiceTypeCode === '03')                     { tipo = 'BOLETA'; }
+                    else if (invoiceTypeCode === '02')                     { tipo = 'RXH'; isRxH = true; }
+                    else if (isRetentionDoc || isPerceptionDoc)            { tipo = 'RXH'; isRxH = true; }
 
-                    // ── Regla estricta del Excel Macro (.bas) para detectar Recibos por Honorarios:
-                    // Buscar en TaxCategory el ID 'RET 4TA' o similar, y que el Percent sea 8.00
-                    const allPercents = getByTag('Percent');
-                    for (const p of allPercents) {
-                        const val = p.textContent.trim();
-                        if (val === '8.00' || val === '8') {
-                            tipo = 'RXH';
-                            isRxH = true;
-                            break;
+                    // Detección RxH por retención 4ta categoría (porcentaje 8%)
+                    if (!isRxH) {
+                        for (const p of getByTag('Percent')) {
+                            const v = p.textContent.trim();
+                            if (v === '8.00' || v === '8') { tipo = 'RXH'; isRxH = true; break; }
                         }
                     }
-
-                    // Regla heredada inamovible (si la etiqueta principal del recibo electrónico es Retention)
-                    if (isRetentionDoc) {
-                        tipo = 'RXH';
-                        isRxH = true;
+                    // Detección RxH por TaxCategory ID = 'RET'
+                    if (!isRxH) {
+                        for (const tc of getByTag('TaxCategory')) {
+                            if (getFirstText('ID', tc) === 'RET') { tipo = 'RXH'; isRxH = true; break; }
+                        }
                     }
 
                     if (isRxH) { igv = 0; subtotal = total; }
 
-                    // ── Verificar si es RxH o Exonerado por código de impuesto SUNAT (Fallback 2):
+                    // Exonerado / Inafecto (sin IGV, no RxH)
                     if (!isRxH && !isCreditNote && tipo === 'FACTURA') {
                         const taxCatIds = getByTag('TaxCategory').flatMap(tc => getByTag('ID', tc));
-                        const hasIGV = taxCatIds.some(n => n.textContent.trim() === 'VAT' || n.textContent.trim() === 'S' || n.textContent.trim() === '1000');
-                        const isExoOrInaf = taxCatIds.some(n => ['OTH', 'RET', 'E', 'O', 'FRE', 'EXO', 'INA'].includes(n.textContent.trim().toUpperCase()));
-
-                        if (!hasIGV && isExoOrInaf) {
-                            // Podría ser Factura sin IGV o RxH. Lo dejamos como estaba pero sin IGV.
-                            igv = 0; subtotal = total;
-                        }
+                        const hasIGV    = taxCatIds.some(n => ['VAT', 'S', '1000'].includes(n.textContent.trim()));
+                        const isExoInaf = taxCatIds.some(n => ['OTH', 'RET', 'E', 'O', 'FRE', 'EXO', 'INA'].includes(n.textContent.trim().toUpperCase()));
+                        if (!hasIGV && isExoInaf) { igv = 0; subtotal = total; }
                     }
 
-                    // ── PC automática por descripción
+                    // ── Moneda ──
+                    let monedaXML = 'PEN';
+                    const payableNodes = getByTag('PayableAmount');
+                    if (payableNodes.length > 0 && payableNodes[0].getAttribute('currencyID')) {
+                        monedaXML = payableNodes[0].getAttribute('currencyID');
+                    } else {
+                        monedaXML = getFirstText('DocumentCurrencyCode') || 'PEN';
+                    }
+
+                    // ── PC automática ──
                     let autoPc = '';
                     const descUpper = descripcion.toUpperCase();
                     if (descUpper.includes('MOVILIDAD') || descUpper.includes('TAXI') || descUpper.includes('PASAJE')) autoPc = '63.1.1.2.1';
@@ -2982,237 +3149,291 @@
 
                     console.log(`XML [${file.name}]: ID=${idNode} RUC=${ruc} Total=${total} Tipo=${tipo}`);
 
-                    // ── Agregar si tiene total > 0 (RUC puede quedar vacío para revisión manual)
                     if (total > 0) {
                         const expenseData = {
-                            date: parsedDate,
-                            seriesNumber: idNode,
-                            ruc: ruc || '',
-                            name: name || 'Extraído de XML',
+                            date: parsedDate, seriesNumber: idNode,
+                            ruc: ruc || '', name: name || 'Extraído de XML',
                             description: descripcion,
                             subtotal: parseFloat(subtotal.toFixed(2)),
                             igv: parseFloat(igv.toFixed(2)),
                             total: parseFloat(total.toFixed(2)),
-                            type: tipo,
-                            pc: autoPc,
+                            type: tipo, pc: autoPc,
+                            moneda: monedaXML, tasaCambio: 1.000,
                             createdAt: serverTimestamp()
                         };
-
-                        let monedaXML = getFirstText('DocumentCurrencyCode') || 'PEN';
-                        expenseData.moneda = monedaXML;
-                        expenseData.tasaCambio = 1.000;
-                        if (monedaXML === 'USD') {
-                            const tc = await fetchSunatExchangeRate(parsedDate);
-                            if (tc) expenseData.tasaCambio = tc;
-                        }
-
-                        const cajaId = getActiveCajaId();
-                        const newExpenseRef = doc(collection(db, "cajasChicasActivas", cajaId, "expenses"));
-                        batch.set(newExpenseRef, expenseData);
-
-                        // Añadir localmente para prevenir duplicados en lote paralelo
-                        expenses.push(expenseData);
-
-                        processedCount++;
-
-                        extractionLogs.push({
-                            file: file.name, status: 'ok',
-                            detail: `${tipo} | ${seriesNumber || '?'} | ${name || ruc || '?'} | Total: ${total.toFixed(2)} | IGV: ${igv.toFixed(2)}`
-                        });
+                        pendingExpenses.push({ file, expenseData, monedaXML, parsedDate, tipo, seriesNumber, ruc, name, total, igv });
+                        extractionLogs.push({ file: file.name, status: 'ok', detail: `${tipo} | ${seriesNumber} | ${name || ruc || '?'} | Total: ${total.toFixed(2)} | IGV: ${igv.toFixed(2)}` });
                     } else {
-                        console.warn(`${file.name}: total=0, se omite.`);
-                        extractionLogs.push({ file: file.name, status: 'warn', detail: 'Omitido: El monto total extraído fue cero.' });
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: 'Omitido: monto total extraído = 0.' });
                     }
 
-                } catch (error) {
-                    console.error(`Error procesando el archivo ${file.name}:`, error);
-                    extractionLogs.push({ file: file.name, status: 'error', detail: 'Falló el procesamiento interno del XML.' });
+                } catch (err) {
+                    console.error(`Error procesando ${file.name}:`, err);
+                    extractionLogs.push({ file: file.name, status: 'error', detail: 'Error interno al procesar el XML.' });
+                    errorCount++;
                 }
             }
 
-            try {
-                await batch.commit();
-                updateExtractionLog();
-                if (processedCount > 0) {
-                    let msg = `${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`;
-                    if (duplicateCount > 0) msg += `\nSe omitieron ${duplicateCount} comprobantes por ser duplicados.`;
-                    alert(msg);
-                } else if (duplicateCount > 0) {
-                    alert(`Se omitieron los ${duplicateCount} comprobantes porque ya están registrados en esta caja (Duplicados).`);
-                } else {
-                    alert("No se pudieron procesar los archivos XML. Verifique el formato.");
+            // ── 3. Obtener tasas de cambio USD en paralelo ──────────────────────
+            const usdItems = pendingExpenses.filter(p => p.monedaXML === 'USD');
+            if (usdItems.length > 0) {
+                await Promise.all(usdItems.map(p =>
+                    fetchSunatExchangeRate(p.parsedDate).then(tc => { if (tc) p.expenseData.tasaCambio = tc; })
+                ));
+            }
+
+            // ── 4. Guardar en Firestore (lotes de máx. 499 ops) ────────────────
+            if (pendingExpenses.length > 0) {
+                const cajaId = getActiveCajaId();
+                const BATCH_LIMIT = 499;
+                const batches = [];
+                let currentBatch = writeBatch(db);
+                let batchOps = 0;
+
+                for (const { expenseData } of pendingExpenses) {
+                    if (batchOps >= BATCH_LIMIT) {
+                        batches.push(currentBatch);
+                        currentBatch = writeBatch(db);
+                        batchOps = 0;
+                    }
+                    const newRef = doc(collection(db, 'cajasChicasActivas', cajaId, 'expenses'));
+                    currentBatch.set(newRef, expenseData);
+                    expenses.push(expenseData); // prevenir duplicados en lote
+                    batchOps++;
                 }
-            } catch (error) {
-                console.error("Error al guardar gastos de XML:", error);
-                alert("Ocurrió un error al guardar los gastos en la base de datos.");
+                batches.push(currentBatch);
+                processedCount = pendingExpenses.length;
+
+                try {
+                    await Promise.all(batches.map(b => b.commit()));
+                    updateExtractionLog();
+                    let msg = `${processedCount} de ${files.length} documentos XML fueron agregados exitosamente.`;
+                    if (duplicateCount > 0) msg += `\nSe omitieron ${duplicateCount} comprobantes duplicados.`;
+                    if (errorCount > 0)     msg += `\n${errorCount} archivos fallaron (ver Logs).`;
+                    alert(msg);
+                } catch (err) {
+                    console.error('Error al guardar gastos XML:', err);
+                    alert('Ocurrió un error al guardar los gastos en la base de datos.');
+                }
+            } else {
+                updateExtractionLog();
+                if (duplicateCount > 0) {
+                    alert(`Se omitieron los ${duplicateCount} comprobantes porque ya están registrados (Duplicados).`);
+                } else {
+                    alert('No se pudieron procesar los archivos XML. Verifique el formato o los logs.');
+                }
             }
 
             toggleLoading(false);
-            event.target.value = '';
         }
 
         // --- EXTRACCIÓN DE PDF ---
         el('pdf-btn').addEventListener('click', () => el('pdf-file-input').click());
         el('pdf-file-input').addEventListener('change', handlePdfFiles);
 
+        // ── OCR (Tesseract.js) — cargado solo cuando hay un PDF escaneado ───────
+        let _ocrWorker = null;
+        async function ensureOcrWorker() {
+            if (_ocrWorker) return _ocrWorker;
+            if (!window.Tesseract) {
+                await new Promise((res, rej) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+                    s.onload = res; s.onerror = rej;
+                    document.head.appendChild(s);
+                });
+            }
+            _ocrWorker = await Tesseract.createWorker('spa', 1, { logger: () => {} });
+            return _ocrWorker;
+        }
+        async function ocrPdfPage(pdfPage) {
+            const viewport = pdfPage.getViewport({ scale: 2.5 });
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            await pdfPage.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            const worker = await ensureOcrWorker();
+            const { data: { text } } = await worker.recognize(canvas);
+            return text;
+        }
+
         async function handlePdfFiles(event) {
             const files = event.target.files;
-            if (files.length === 0 || !activePettyCash) return;
+            if (!files.length || !activePettyCash) return;
             toggleLoading(true);
-            let processedCount = 0;
-            let duplicateCount = 0;
+            let processedCount = 0, duplicateCount = 0;
             const batch = writeBatch(db);
 
             for (const file of files) {
                 try {
+                    // ── Parsear nombre de archivo formato SUNAT: RUC-TIPO-SERIE-NUMERO.pdf ──
+                    // Ejemplo: 20554367543-01-F001-0006994.pdf → fuente de datos de alta fiabilidad
+                    const sunatFn = file.name.match(/^(\d{11})-(\d{2})-([A-Z][A-Z0-9]{2,3})-(\d{1,8})(?:\s*\(\d+\))?\.pdf$/i);
+                    let fnRuc = sunatFn ? sunatFn[1] : '';
+                    let fnType = sunatFn ? sunatFn[2] : '';
+                    let fnSeries = sunatFn ? `${sunatFn[3]}-${sunatFn[4]}` : '';
+
+                    // ── Extraer texto del PDF con mejor reconstrucción ──────────────
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-                    // Extraer texto preservando saltos de línea por elemento
                     let lines = [];
+
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
                         const tc = await page.getTextContent();
-                        // Agrupar items por y-position para reconstruir líneas
-                        const byY = {};
-                        tc.items.forEach(item => {
-                            const y = Math.round(item.transform[5]);
-                            if (!byY[y]) byY[y] = [];
-                            byY[y].push(item.str.trim());
-                        });
-                        Object.keys(byY).sort((a, b) => b - a).forEach(y => {
-                            const line = byY[y].join(' ').trim();
-                            if (line) lines.push(line);
-                        });
-                    }
-                    const fullText = lines.join('\n');
-                    console.log('PDF TEXT SAMPLE:', fullText.substring(0, 600));
 
-                    // ── TIPO DE DOCUMENTO ───────────────────────────────────────────
-                    const fText = fullText.toUpperCase();
-                    let type = 'FACTURA'; // default
-                    // REGLA: El tipo se determina por el TEXTO del encabezado del PDF
-                    const cleanTextForType = fText.replace(/\s+/g, ' ');
-
-                    if (cleanTextForType.includes('RECIBO POR HONORARIO')) {
-                        type = 'RXH';
-                    } else if (cleanTextForType.includes('NOTA DE CR')) {
-                        type = 'NOTA DE CREDITO';
-                    } else if (cleanTextForType.includes('BOLETA DE VENTA') || cleanTextForType.includes('BOLETA ELECTR')) {
-                        type = 'BOLETA';
-                    } else if (cleanTextForType.includes('FACTURA ELECTR') || cleanTextForType.includes('FACTURA DE VENTA') || cleanTextForType.includes('FACTURA COMERCIAL')) {
-                        type = 'FACTURA';
-                    }
-
-                    // ── RUC del EMISOR (proveedor) ──────────────────────────────────
-                    const allRucs = [...fullText.matchAll(/\b((?:20|10)\d{9})\b/g)].map(m => m[1]);
-                    const ruc = allRucs[0] || '';
-
-                    // ── RAZÓN SOCIAL del EMISOR ─────────────────────────────────────
-                    let razonSocial = '';
-                    if (type === 'RXH') {
-                        // En RxH, el nombre está casi siempre en la primera línea antes del RUC del emisor
-                        const rxhNameMatch = fullText.match(/^\s*(.+?)\s+R\.?U\.?C\.?\s*\d{11}/i);
-                        if (rxhNameMatch) {
-                            razonSocial = rxhNameMatch[1].trim();
-                        } else {
-                            const fallbackMatch = fullText.match(/^([a-zA-ZÁÉÍÓÚÑ\s]+)\s+R/i);
-                            if (fallbackMatch) razonSocial = fallbackMatch[1].trim();
-                            else razonSocial = 'Proveedor RXH';
+                        // Agrupar items por banda Y (tolerancia ±3px), ordenar por X dentro de cada línea
+                        const bands = {};
+                        for (const item of tc.items) {
+                            if (!item.str) continue;
+                            const y = item.transform[5];
+                            const key = Object.keys(bands).find(k => Math.abs(parseFloat(k) - y) <= 3) ?? String(y);
+                            if (!bands[key]) bands[key] = [];
+                            bands[key].push({ x: item.transform[4], str: item.str });
                         }
+                        Object.keys(bands)
+                            .sort((a, b) => parseFloat(b) - parseFloat(a))
+                            .forEach(k => {
+                                const line = bands[k].sort((a, b) => a.x - b.x)
+                                    .map(i => i.str).join(' ').replace(/\s{3,}/g, '  ').trim();
+                                if (line) lines.push(line);
+                            });
+                    }
+
+                    // ── Detección de PDF escaneado → OCR con Tesseract ──────────────
+                    if (lines.join('').replace(/\s/g, '').length < 100) {
+                        const ocrLines = [];
+                        let ocrOk = false;
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            try {
+                                const ocrText = await ocrPdfPage(await pdf.getPage(i));
+                                ocrLines.push(...ocrText.split('\n').map(l => l.trim()).filter(Boolean));
+                                ocrOk = true;
+                            } catch(e) { console.warn('OCR page error:', e); }
+                        }
+                        if (!ocrOk || !ocrLines.length) {
+                            extractionLogs.push({ file: file.name, status: 'warn', detail: 'PDF escaneado sin texto recuperable. Revise manualmente.' });
+                            continue;
+                        }
+                        lines = ocrLines;
+                    }
+
+                    const fullText = lines.join('\n');
+                    const fUpper  = fullText.toUpperCase().replace(/\s+/g, ' ');
+                    console.log('PDF TEXT:', fullText.substring(0, 700));
+
+                    // ── TIPO de documento ──────────────────────────────────────────
+                    let type = 'FACTURA';
+                    if      (fUpper.includes('RECIBO POR HONORARIO'))                                              type = 'RXH';
+                    else if (fUpper.includes('NOTA DE CR'))                                                        type = 'NOTA DE CREDITO';
+                    else if (fUpper.includes('NOTA DE DEB'))                                                       type = 'NOTA DE DEBITO';
+                    else if (fUpper.includes('BOLETA DE VENTA') || fUpper.includes('BOLETA ELECTR'))              type = 'BOLETA';
+                    else if (fUpper.includes('FACTURA ELECTR') || fUpper.includes('FACTURA DE VENTA'))            type = 'FACTURA';
+                    // Refinar con código de tipo del nombre de archivo
+                    if (fnType) {
+                        const FN_TYPES = { '01':'FACTURA', '03':'BOLETA', '07':'NOTA DE CREDITO', '08':'NOTA DE DEBITO', '02':'RXH' };
+                        if (FN_TYPES[fnType] && type === 'FACTURA') type = FN_TYPES[fnType];
+                    }
+
+                    // ── RUC del EMISOR ─────────────────────────────────────────────
+                    // Preferir el RUC que aparece después de la etiqueta "R.U.C."
+                    const rucLabelMatch = fullText.match(/R\.?U\.?C\.?.{0,12}?((20|10)\d{9})/i);
+                    const allRucs = [...fullText.matchAll(/\b((20|10)\d{9})\b/g)].map(m => m[1]);
+                    let ruc = rucLabelMatch ? rucLabelMatch[1] : (fnRuc || allRucs[0] || '');
+
+                    // ── RAZÓN SOCIAL del EMISOR ────────────────────────────────────
+                    let razonSocial = '';
+
+                    if (type === 'RXH') {
+                        // En RxH el nombre aparece antes del RUC en el encabezado
+                        const rxhM = fullText.match(/^\s*(.+?)\s+R\.?U\.?C\.?/im);
+                        razonSocial = rxhM ? rxhM[1].trim() : 'Honorarios Profesionales';
                     } else {
-                        // 'adquiriente' es la empresa RECEPTORA/CLIENTE — ignorar esas líneas
-                        const clienteRE = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|adquiriente|datos\s+del|\ba\s*:|\bpara\b)/i;
-                        const direccionRE = /^\s*(?:AV\.|JR\.|CAL\.|PJE\.|URB\.|MZ\.|LT\.|INT\.|NRO\.|C\.C\.|LIMA|SAN\s|LOS\s|LAS\s)/i;
-                        const docTypeLine = /^(?:FACTURA|BOLETA|RECIBO|NOTA\s+DE|LIQUIDACI|RUC[:\s\.]|FECHA|SERIE|N[°º]|EMITIDO|DIRECCI|IMPORTE|TOTAL|ITEM|BIEN)/i;
-                        const LEGAL_RE = /((?:S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|S\.A\b)[.,]?)/i;
+                        // ── Estrategia 0 (máxima fiabilidad): línea después de "DOMICILIO FISCAL:" ──
+                        // Formato típico: [Nombre Comercial] → R.U.C. → DOMICILIO FISCAL: → [RAZÓN SOCIAL registrada en SUNAT] → [Dirección]
+                        const LEGAL_SUFFIX = /(S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|\bS\.A\b)/i;
+                        const domFiscalM = fullText.match(/DOMICILIO\s+FISCAL\s*:?\s*[\r\n]+([^\r\n]+)/i);
+                        if (domFiscalM) {
+                            const c = domFiscalM[1].trim();
+                            if (LEGAL_SUFFIX.test(c) && !/^(?:AV\.|JR\.|CAL\.|PJE\.|URB\.|MZ\.|LT\.|INT\.|NRO\.)/.test(c) && c.length > 3)
+                                razonSocial = c;
+                        }
 
-                        const extractUntilLegal = (line) => {
-                            const m = line.match(/(^[\w\s&.,'-]{2,60}?)(S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|\bS\.A\b)/i);
-                            if (m) {
-                                return (m[1] + m[2]).replace(/\.\s*$/, '').trim();
+                        // ── Estrategia 1: la línea inmediatamente ANTES de "R.U.C." ──
+                        // La mayoría de facturas peruanas ponen: NombreEmpresa → RUC N° → FACTURA ELECTRÓNICA
+                        const beforeRucM = !razonSocial && fullText.match(/([\s\S]*?)R\.?U\.?C\.?.{0,12}?(?:20|10)\d{9}/i);
+                        if (beforeRucM) {
+                            const badLine = /^(?:AV\.|JR\.|CAL\.|PJE\.|PSJE?\.|URB\.|MZ\.|LT\.|ASC\.|ASOC\.|INT\.|NRO\.|CARR\.|SECTOR\s|DOMICILIO|FECHA|TOTAL|IGV|N[°º]|FACTURA|BOLETA|RECIBO|NOTA\s+DE|REPRESENT|TELEFON|CORREO|SON:|\d)/i;
+                            const addrContent = /\b(MZA?\.|LOTE?\s|LOTE?\.|LT\.\s|PARADERO|PASAJE\b|URBANIZ|AA\.HH|PP\.JJ|NRO\.\s*\d|#\s*\d{1,4}\b)/i;
+                            const validBeforeLines = beforeRucM[1].split('\n')
+                                .map(l => l.trim())
+                                .filter(l => l.length > 2 && !/^[\d\s\/:.,()%-]+$/.test(l) && !badLine.test(l) && !addrContent.test(l));
+                            const candidate = validBeforeLines[validBeforeLines.length - 1] || '';
+                            if (candidate.length >= 3)
+                                razonSocial = candidate.replace(/\s*(FACTURA|BOLETA|RECIBO)\s+ELECTR.*/i, '').trim();
+                        }
+
+                        // ── Estrategia 2: nombre en la misma línea que el RUC ──────────
+                        if (!razonSocial) {
+                            const sameLineM = fullText.match(/(.{5,60})\s+R\.?U\.?C\.?.{0,10}?(?:20|10)\d{9}/i);
+                            if (sameLineM) {
+                                const c = sameLineM[1].trim();
+                                if (!/^(?:AV\.|JR\.|CAL\.|FECHA|\d)/.test(c)) razonSocial = c;
                             }
-                            return line.replace(/\s+FACTURA\s+ELECTR.*/i, '')
-                                .replace(/\s+BOLETA\s+ELECTR.*/i, '')
-                                .replace(/\s+RECIBO\s+POR.*/i, '')
-                                .replace(/\s+AV\.\s.*/i, '')
-                                .replace(/\s+JR\.\s.*/i, '').trim();
-                        };
+                        }
 
-                        for (let idx = 0; idx < Math.min(lines.length, 30); idx++) {
-                            const raw = lines[idx].trim();
-                            if (raw.length < 3) continue;
-                            if (/^[\d\s\/:.,()%-]+$/.test(raw)) continue;
-                            if (docTypeLine.test(raw)) continue;
-                            if (clienteRE.test(raw)) break;
-                            if (direccionRE.test(raw)) continue;
-
-                            let lineToCheck = raw;
-                            if (ruc && raw.includes(ruc)) {
-                                const beforeRucText = raw.split(ruc)[0].trim();
-                                const cleanedBefore = beforeRucText.replace(/\bRUC\b\s*N?°?\s*$/i, '').trim();
-                                if (cleanedBefore.length >= 3 && /[A-Za-záéíóúÁÉÍÓÚñÑ]{3,}/.test(cleanedBefore)) {
-                                    razonSocial = extractUntilLegal(cleanedBefore);
-                                    break;
-                                } else {
+                        // ── Estrategia 3 (fallback): primera línea con sufijo legal S.A.C., S.R.L., etc. ──
+                        if (!razonSocial) {
+                            const clienteRE   = /(?:nombre[\s/]*raz[oó]n|se[nñ]or(?:es)?|cliente|receptor|destinatario|comprador|adquiriente|datos\s+del)/i;
+                            const skipLine    = /^(?:AV\.|JR\.|CAL\.|PJE\.|URB\.|MZ\.|DOMICILIO|FACTURA|BOLETA|RECIBO|NOTA\s+DE|RUC[:\s\.]|FECHA|SERIE|N[°º]|EMITIDO|DIRECCI|IMPORTE|TOTAL|ITEM|BIEN)/i;
+                            const LEGAL_RE    = /(S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|\bS\.A\b)/i;
+                            const extractUntilLegal = (line) => {
+                                const m = line.match(/(^[\w\s&.,'-]{2,60}?)(S\.?A\.?C?\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L?\.?|LTDA?\.?|\bS\.A\b)/i);
+                                return m ? (m[1] + m[2]).replace(/\.\s*$/, '').trim()
+                                         : line.replace(/\s+(FACTURA|BOLETA|RECIBO)\s+ELECTR.*/i, '').replace(/\s+(AV\.|JR\.)\s.*/i, '').trim();
+                            };
+                            for (let idx = 0; idx < Math.min(lines.length, 40); idx++) {
+                                const raw = lines[idx].trim();
+                                if (raw.length < 3 || /^[\d\s\/:.,()%-]+$/.test(raw) || skipLine.test(raw)) continue;
+                                if (clienteRE.test(raw)) break;
+                                if (ruc && raw.includes(ruc)) {
+                                    const before = raw.split(ruc)[0].replace(/\bR\.?U\.?C\.?\b\s*N?[°º]?\s*$/i, '').trim();
+                                    if (before.length >= 3 && /[A-Za-záéíóú]{3,}/.test(before)) { razonSocial = before; break; }
                                     continue;
                                 }
+                                if (LEGAL_RE.test(raw)) { razonSocial = extractUntilLegal(raw); break; }
                             }
-
-                            if (LEGAL_RE.test(raw)) {
-                                const candidate = extractUntilLegal(raw);
-                                if (candidate.length >= 3) {
-                                    razonSocial = candidate;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!razonSocial) {
-                            const docLabels = /^(?:RUC|FACTURA|BOLETA|RECIBO|BIEN|FECHA|EMITIDO|NOTA|LIQUIDACION|IMPORTE|TOTAL|SON:|N°)/i;
-                            const candidate = lines.slice(0, 20).find(l =>
-                                l.trim().length > 4
-                                && !l.includes(ruc)
-                                && !clienteRE.test(l)
-                                && !docLabels.test(l)
-                                && !direccionRE.test(l)
-                                && /[A-Za-zÁÉÍÓÚÑ]{3,}/.test(l)
-                            );
-                            if (candidate) razonSocial = extractUntilLegal(candidate.trim());
                         }
                     }
 
-                    // ── SERIE Y NÚMERO ──────────────────────────────────────────────
-                    const cleanTextForSeries = fullText.replace(/EBIZ[-_][A-Z0-9]+/gi, ' ').replace(/Nro(?:[°\.]|\s*:)?\s*/gi, '');
-                    const seriesMatch = cleanTextForSeries.match(/\b([FBECR][A-Z0-9]{2,3}\s*[-]\s*\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b([FBECR][-]\s*[A-Z0-9]{3}\s*[-]\s*\d{1,8})\b/i)
-                        || cleanTextForSeries.match(/\b(\d{3,4}\s*[-]\s*\d{1,8})\b/i);
-
-                    let seriesNumber = seriesMatch ? seriesMatch[1].toUpperCase().replace(/\s+/g, '') : '';
-                    if (seriesNumber && /^B/i.test(seriesNumber) && type === 'FACTURA') {
-                        type = 'BOLETA';
+                    // ── SERIE Y NÚMERO ─────────────────────────────────────────────
+                    let seriesNumber = fnSeries; // nombre de archivo SUNAT es la fuente más fiable
+                    if (!seriesNumber) {
+                        const ct = fullText.replace(/EBIZ[-_][A-Z0-9]+/gi, ' ').replace(/Nro\.?\s*:?\s*/gi, '');
+                        const sm = ct.match(/\b([FBECR][A-Z0-9]{2,3}\s*[-]\s*\d{1,8})\b/i)
+                            || ct.match(/[Ss]erie\s*[:\s]+([A-Z0-9]{3,4}\s*[-]\s*\d{1,8})/i)
+                            || ct.match(/\b([FBECR][-][A-Z0-9]{3}[-]\d{1,8})\b/i)
+                            || ct.match(/\b(\d{3,4}\s*[-]\s*\d{1,8})\b/i);
+                        if (sm) seriesNumber = sm[1].toUpperCase().replace(/\s+/g, '');
                     }
+                    // Coherencia tipo ↔ serie
+                    if (seriesNumber?.match(/^B/i) && type === 'FACTURA') type = 'BOLETA';
+                    if (seriesNumber?.match(/^F/i) && type === 'BOLETA')  type = 'FACTURA';
 
-                    // ── FECHA ────────────────────────────────────────────────────────
+                    // ── FECHA ──────────────────────────────────────────────────────
                     let date = new Date();
-                    let dateMatched = false;
-                    if (type === 'RXH') {
-                        const months = { 'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5, 'julio': 6, 'agosto': 7, 'septiembre': 8, 'setiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11 };
-                        // RXH puede decir "Fecha de emisión 23 de diciembre" o "Lima, 23 de diciembre de 2025"
-                        const strDateMatch = fullText.match(/(?:Fecha de emisi[oó]n|Lima(?:[,\s]*))?\s*(\d{1,2})\s+de\s+([a-zA-Z]+)\s+del?\s+(\d{4})/i);
-                        if (strDateMatch) {
-                            const m = months[strDateMatch[2].toLowerCase()];
-                            if (m !== undefined) {
-                                date = new Date(parseInt(strDateMatch[3]), m, parseInt(strDateMatch[1]), 12, 0, 0);
-                                dateMatched = true;
-                            }
-                        }
-                    }
-                    if (!dateMatched) {
-                        const dateMatch = fullText.match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/)
-                            || fullText.match(/(\d{4})[\/-](\d{2})[\/-](\d{2})/);
-                        if (dateMatch) {
-                            const [_, p1, p2, p3] = dateMatch;
+                    const months = { 'enero':0,'febrero':1,'marzo':2,'abril':3,'mayo':4,'junio':5,'julio':6,'agosto':7,'septiembre':8,'setiembre':8,'octubre':9,'noviembre':10,'diciembre':11 };
+                    // Fecha en español: "18 de febrero de 2026"
+                    const spanishD = fullText.match(/(\d{1,2})\s+de\s+([a-zA-Z]+)\s+(?:del?\s+)?(\d{4})/i);
+                    if (spanishD && months[spanishD[2].toLowerCase()] !== undefined) {
+                        date = new Date(+spanishD[3], months[spanishD[2].toLowerCase()], +spanishD[1], 12, 0, 0);
+                    } else {
+                        // Fecha numérica — buscar primero cerca de la etiqueta "Fecha:"
+                        const labeled = fullText.match(/[Ff]echa[^:\n]{0,15}:\s*(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})/);
+                        const numericD = labeled
+                            || fullText.match(/(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})/)
+                            || fullText.match(/(\d{4})[\/\-.](\d{2})[\/\-.](\d{2})/);
+                        if (numericD) {
+                            const [, p1, p2, p3] = numericD;
                             date = p1.length === 4
                                 ? new Date(`${p1}-${p2}-${p3}T12:00:00Z`)
                                 : new Date(`${p3}-${p2}-${p1}T12:00:00Z`);
@@ -3220,196 +3441,139 @@
                     }
                     if (isNaN(date.getTime())) date = new Date();
 
-                    // ── MONEDA del comprobante ─────────────────────────────────────
-                    let monedaPDF = 'PEN'; // default soles
-                    {
-                        const fU = fullText.toUpperCase();
-                        const monMatch = fullText.match(/Moneda[:\s]+([\$S\/USD]{1,3})/i);
-                        if (monMatch) {
-                            const sym = monMatch[1].trim();
-                            if (sym === '$' || sym.toUpperCase() === 'USD' || sym === 'US$') monedaPDF = 'USD';
-                            else if (sym === 'S/' || sym === 'S/.' || sym.toUpperCase() === 'PEN') monedaPDF = 'PEN';
-                        } else {
-                            if (fU.includes('DÓLAR') || fU.includes('DOLAR') || fU.includes('USD') || (fU.includes('CUATROCIENTOS') && fU.includes('DÓLARES'))) {
-                                monedaPDF = 'USD';
-                            }
-                        }
+                    // ── MONEDA ─────────────────────────────────────────────────────
+                    let monedaPDF = 'PEN';
+                    const monM = fullText.match(/[Mm]oneda[:\s]+(S\/\.?|PEN|\$|USD|US\$)/);
+                    if (monM) {
+                        const sym = monM[1].trim().toUpperCase();
+                        monedaPDF = (sym === '$' || sym === 'USD' || sym === 'US$') ? 'USD' : 'PEN';
+                    } else if (/DÓLAR|DOLAR|\bUSD\b/.test(fUpper)) {
+                        monedaPDF = 'USD';
                     }
 
-                    // ── MONTOS — acepta S/ (soles) y $ (dólares) ────────────────
-                    const MON = '(?:S\\/\\.?|\\$|USD)\\s*';
-                    const getAmount = (...patterns) => {
-                        for (const pat of patterns) {
-                            const m = fullText.match(pat);
+                    // ── MONTOS ─────────────────────────────────────────────────────
+                    const MN = '(?:S\\/\\.?|S\\/|\\$|USD)?\\s*';
+                    const AM = '([\\d,]+\\.\\d{2})';
+                    const getAmt = (...pats) => {
+                        for (const p of pats) {
+                            const m = fullText.match(p);
                             if (m) { const v = parseFloat(m[1].replace(/,/g, '')); if (!isNaN(v) && v > 0) return v; }
                         }
                         return 0;
                     };
 
                     let total = 0, subtotal = 0, igv = 0;
-                    if (type === 'RXH') {
-                        const rxhTotalMatch = fullText.match(/Total Neto Recibido:\s*([\d,]+\.\d{2})/i) || fullText.match(/Total por honorarios:\s*([\d,]+\.\d{2})/i);
-                        if (rxhTotalMatch) {
-                            total = parseFloat(rxhTotalMatch[1].replace(/,/g, ''));
-                        } else {
-                            // Fallback numérico sin sufijos
-                            const rawMatch = fullText.match(/Total Neto Recibido:\s*\S*\s*([\d,]+\.\d{2})/i);
-                            if (rawMatch) total = parseFloat(rawMatch[1].replace(/,/g, ''));
-                        }
 
-                        // Retención
-                        const retMatch = fullText.match(/Retenci[oó]n\s*\(8\s*%\)\s*I?R?:\s*\(?([\d,]+\.\d{2})\)?/i);
-                        let retencion = retMatch ? parseFloat(retMatch[1].replace(/,/g, '')) : 0;
-                        if (retencion > 0) subtotal = parseFloat((total + retencion).toFixed(2));
-                        else subtotal = total;
+                    if (type === 'RXH') {
+                        total = getAmt(
+                            /Total\s+Neto\s+Recibido[:\s]+[S\/$]?\/?\s*([\d,]+\.\d{2})/i,
+                            /Total\s+(?:por\s+)?[Hh]onorarios[:\s]+[S\/$]?\/?\s*([\d,]+\.\d{2})/i,
+                            /NETO\s+A\s+COBRAR[:\s]+[S\/$]?\/?\s*([\d,]+\.\d{2})/i
+                        );
+                        const retM = fullText.match(/Retenci[oó]n\s*(?:\(8\s*%\))?[:\s]+\(?([\d,]+\.\d{2})\)?/i);
+                        const ret = retM ? parseFloat(retM[1].replace(/,/g, '')) : 0;
+                        subtotal = ret > 0 ? parseFloat((total + ret).toFixed(2)) : total;
                         igv = 0;
                     } else {
-                        total = getAmount(
-                            new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|TOTAL\\s+VENTA|PRECIO\\s+TOTAL)[\\s\\S]{0,40}${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                            new RegExp(`TOTAL[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                            new RegExp(`${MON}([\\d]{1,6}\\.\\d{2})\\s*(?:$|\\n)`, 'im')
+                        total = getAmt(
+                            new RegExp(`(?:IMPORTE\\s+TOTAL|TOTAL\\s+A\\s+PAGAR|PRECIO\\s+TOTAL|TOTAL\\s+VENTA)[\\s\\S]{0,80}${MN}${AM}`, 'i'),
+                            new RegExp(`TOTAL[:\\s]+${MN}${AM}`, 'i'),
+                            /(?:TOTAL|IMPORTE)\s+S\/\.?\s*([\d,]+\.\d{2})/i
                         );
-                        igv = getAmount(
-                            new RegExp(`I\\.?G\\.?V\\.?[:\\s(]*(?:18\\s*%)?[)\\s]*${MON}\\s*([\\d,]+\\.\\d{2})`, 'i'),
-                            /IGV[:\s]+S\/\.?\s*(\d[\d,]+\.\d{2})/i,
-                            /IGV[\s:]+([\d,]+\.\d{2})/i,
-                            /18\s*%[\s:]*S\/\.?\s*([\d,]+\.\d{2})/i
+                        igv = getAmt(
+                            new RegExp(`(?:Total\\s+IGV|I\\.?G\\.?V\\.?)[\\s\\(]*(?:18\\s*%)?[\\)\\s]*[:\\s]*${MN}${AM}`, 'i'),
+                            /IGV[:\s]+S\/\.?\s*([\d,]+\.\d{2})/i,
+                            /18\s*%[:\s]*S\/\.?\s*([\d,]+\.\d{2})/i
                         );
-                        subtotal = getAmount(
-                            new RegExp(`(?:OP(?:ERACI[OÓ]N)?(?:\\s+GRAV[A-Z]*)?|BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|Op\\.\\s*Gravada|MONTO\\s+ANTES|VALOR\\s+NETO)[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i'),
-                            new RegExp(`Op\\.\\s*Gravada[:\\s]+${MON}([\\d,]+\\.\\d{2})`, 'i')
+                        subtotal = getAmt(
+                            /(?:Total\s+)?Ope?\.?\s*Grav[^\n]{0,40}S\/\.?\s*([\d,]+\.\d{2})/i,
+                            new RegExp(`(?:BASE\\s+IMPONIBLE|SUB\\.?\\s*TOTAL|VALOR\\s+VENTA|VALOR\\s+NETO|MONTO\\s+ANTES|Op\\.?\\s*Gravad[ao])[:\\s]+${MN}${AM}`, 'i')
                         );
+                        // Detectar si el documento realmente tiene IGV
+                        // (recibos de agua, honorarios y documentos exonerados no lo tienen)
+                        const hasIgvMarker = /\bI\.?G\.?V\.?\b|18\s*%|Ope\.?\s*Grav/i.test(fullText);
 
-                        // Reglas de IGV
-                        if (subtotal && !igv) igv = parseFloat((subtotal * 0.18).toFixed(2));
-                        if (igv && !subtotal) subtotal = parseFloat((total - igv).toFixed(2));
-                        if (!igv && total) igv = parseFloat((total / 1.18 * 0.18).toFixed(2));
-                        if (!subtotal && igv) subtotal = parseFloat((total - igv).toFixed(2));
-                        if (!total && subtotal) { igv = parseFloat((subtotal * 0.18).toFixed(2)); total = parseFloat((subtotal + igv).toFixed(2)); }
+                        // Calcular valores faltantes SOLO si hay evidencia de IGV
+                        if (subtotal && !igv && hasIgvMarker)  igv      = parseFloat((subtotal * 0.18).toFixed(2));
+                        if (igv && !subtotal)                   subtotal = parseFloat((total - igv).toFixed(2));
+                        if (!igv && total && hasIgvMarker)      igv      = parseFloat((total / 1.18 * 0.18).toFixed(2));
+                        if (!subtotal && igv)                   subtotal = parseFloat((total - igv).toFixed(2));
+                        if (!total && subtotal) {
+                            if (hasIgvMarker) { igv = parseFloat((subtotal * 0.18).toFixed(2)); total = parseFloat((subtotal + igv).toFixed(2)); }
+                            else              { total = subtotal; }
+                        }
+                        // Documento sin IGV: subtotal = total
+                        if (!hasIgvMarker && total > 0 && !igv) subtotal = total;
+                        // Sanity: total < subtotal es imposible → estaba truncado, recalcular
+                        if (subtotal > 0 && total > 0 && total < subtotal) {
+                            total = parseFloat((subtotal + igv).toFixed(2));
+                        }
                     }
 
-                    // ── Validar duplicados ──────────────────────────────────────
+                    // ── Duplicados ─────────────────────────────────────────────────
                     if (ruc && seriesNumber && expenses.some(e => String(e.ruc) === String(ruc) && String(e.seriesNumber) === String(seriesNumber))) {
-                        console.warn(`Duplicado PDF omitido: ${file.name} (RUC: ${ruc}, Serie: ${seriesNumber})`);
-                        extractionLogs.push({ file: file.name, status: 'warn', detail: `COMPROBANTE DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
-                        duplicateCount++;
-                        continue;
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: `DUPLICADO. RUC ${ruc} y Serie ${seriesNumber} ya están en esta caja.` });
+                        duplicateCount++; continue;
                     }
 
-                    // ── DESCRIPCIÓN: extraer y humanizar items del detalle ────────
+                    // ── DESCRIPCIÓN ────────────────────────────────────────────────
                     let descripcion = '';
-                    const detailHeaderIdx = lines.findIndex(l =>
-                        /(?:descripci[oó]n|nombre.{0,15}descripci|bien.{0,10}servicio|detalle)/i.test(l)
-                    );
+                    const detailHeaderIdx = lines.findIndex(l => /(?:descripci[oó]n|nombre.{0,15}descripci|bien.{0,10}servicio|detalle)/i.test(l));
                     const totalesIdx = lines.findIndex((l, i) =>
-                        i > Math.max(detailHeaderIdx, 0) &&
-                        /(?:^son:|op(?:eraciones?)?\.?\s*grav|importe\s+total|I\.G\.V|sub.*total)/i.test(l)
-                    );
+                        i > Math.max(detailHeaderIdx, 0) && /(?:^son:|ope?\.?\s*grav|importe\s+total|I\.G\.V|sub.*total)/i.test(l));
 
-                    // ── cleanProductLine: quita código, nº ítem, unidad y precios ─
-                    const UNIT_PAT = /\s+(?:Lic\/mes|Lic\/|Und\/mes|Und|Uni|Una|Pza|Cja|Kg|Lt|Serv|Hora|Día|Mes|hrs?|GBL)\s+\d.*/i;
-                    const cleanProductLine = (line) => {
-                        let t = line.trim();
-                        // 1. Quitar número de ítem al inicio (ej: "1 " o "12 ")
-                        t = t.replace(/^\d{1,2}\s+(?=\d)/, '');
-                        // 2. Quitar código de producto (hasta 20 dígitos)
-                        t = t.replace(/^\d{3,20}\s+/, '');
-                        // 3. Quitar " UNIDAD CANTIDAD PRECIO..." al final
-                        t = t.replace(UNIT_PAT, '');
-                        // 4. Quitar números de precio al final (si quedan)
-                        t = t.replace(/\s+\d+[.,]\d{2}(\s+\d+[.,]\d{2})*\s*$/, '');
-                        // 5. Quitar guión suelto al final (descripción cortada)
-                        t = t.replace(/\s+-\s*$/, '');
-                        // 6. Quitar "Lic/" suelto al final
-                        t = t.replace(/\s+Lic\/\s*$/i, '');
+                    const UNIT_PAT = /\s+(?:Lic\/mes|Lic\/|Und\/mes|Und|Uni|Una|Pza|Cja|Kg|Lt|Serv|Hora|Día|Mes|hrs?|GBL|HRS|KWH|GL|M2|M3)\s+\d.*/i;
+                    const cleanLine = (line) => {
+                        let t = line.trim()
+                            .replace(/^\d{1,2}\s+(?=\d)/, '')
+                            .replace(/^\d{3,20}\s+/, '')
+                            .replace(UNIT_PAT, '')
+                            .replace(/\s+\d+[.,]\d{2}(\s+\d+[.,]\d{2})*\s*$/, '')
+                            .replace(/\s+-\s*$/, '');
                         return t.trim();
                     };
-
-                    // Title Case: respeta siglas y alfanuméricas (DDR4, 8GB, S10, etc.)
-                    const toTitleCase = (s) => s.split(' ').map(w => {
-                        if (/\d/.test(w) || w.length <= 3) return w;
-                        if (w === w.toUpperCase()) return w.charAt(0) + w.slice(1).toLowerCase();
-                        return w;
-                    }).join(' ');
+                    const toTitle = (s) => s.split(' ').map(w =>
+                        (/\d/.test(w) || w.length <= 3) ? w
+                        : w === w.toUpperCase() ? w.charAt(0) + w.slice(1).toLowerCase() : w
+                    ).join(' ');
 
                     if (type === 'RXH') {
-                        const rxhDescMatch = fullText.match(/Por concepto de[:\s]+([\s\S]+?)(?:Observaci[oó]n|Inciso|Fecha de emisi[oó]n)/i);
-                        if (rxhDescMatch) {
-                            descripcion = rxhDescMatch[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-                        } else {
-                            descripcion = 'Honorarios profesionales importados';
-                        }
+                        const rxhD = fullText.match(/Por\s+concepto\s+de[:\s]+([\s\S]+?)(?:Observaci[oó]n|Inciso|Fecha\s+de\s+emisi[oó]n)/i);
+                        descripcion = rxhD ? rxhD[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() : 'Honorarios profesionales';
                     } else if (detailHeaderIdx >= 0) {
                         const endIdx = totalesIdx > detailHeaderIdx ? totalesIdx : lines.length;
-                        const rawDetail = lines.slice(detailHeaderIdx + 1, endIdx);
-
-                        // Fusionar continuaciones: si una línea no empieza con dígitos
-                        // es continuación de la línea anterior
-                        const colHeaders = /^(c[oó]digo|item|ítem|cantidad|unid|uni\b|precio|total|garantia|p\.u|pu\b|cod|sub|igv|det|valor|descuento|v\.\s*unit)/i;
-                        const mergedLines = [];
-                        for (const raw of rawDetail) {
+                        const colHdr = /^(c[oó]digo|item|ítem|cantidad|unid|uni\b|precio|total|garantia|p\.u|pu\b|cod|sub|igv|det|valor|descuento)/i;
+                        const merged = [];
+                        for (const raw of lines.slice(detailHeaderIdx + 1, endIdx)) {
                             const t = raw.trim();
-                            if (!t || colHeaders.test(t)) continue;
-                            // Línea primaria: empieza con número de ítem O con código largo
-                            const isPrimary = /^\d{1,2}\s+\d{3,}/.test(t)  // "1 04826000200004..."
-                                || /^\d{3,20}\s+[A-Z]/.test(t);  // "04826000200004 SERVICIO..."
-                            if (isPrimary || mergedLines.length === 0) {
-                                mergedLines.push(t);
-                            } else {
-                                // Es continuación: concatenar a la línea anterior
-                                mergedLines[mergedLines.length - 1] += ' ' + t;
-                            }
+                            if (!t || colHdr.test(t)) continue;
+                            const isPrimary = /^\d{1,2}\s+\d{3,}/.test(t) || /^\d{3,20}\s+[A-Z]/.test(t);
+                            if (isPrimary || merged.length === 0) merged.push(t);
+                            else merged[merged.length - 1] += ' ' + t;
                         }
-
-                        // Filtrar líneas que tienen contenido textual real
-                        const isProductLine = l => {
-                            const c = cleanProductLine(l);
-                            return c.length > 4 && /[a-záéíóúñ]{3,}/i.test(c);
-                        };
-                        const productLines = mergedLines.filter(isProductLine);
-
-                        if (productLines.length > 0) {
-                            const cleaned = productLines
-                                .map(cleanProductLine)
-                                .map(toTitleCase)
-                                .filter(d => d.length > 3);
-
-                            // Detectar prefijo común entre ítems para condensar
-                            const findLCP = (strs) => {
-                                if (strs.length < 2) return '';
-                                const s = strs[0];
-                                let i = 0;
-                                while (i < s.length && strs.every(str => str.startsWith(s.slice(0, i + 1)))) i++;
-                                return s.slice(0, i).replace(/[\s-]+$/, '');
-                            };
-                            const lcp = findLCP(cleaned.map(s => s.toUpperCase()));
-                            const MAX_SHOW = 3;
-                            if (lcp.length > 15 && cleaned.length >= 2) {
-                                // Todos los ítems comparten prefijo: "Servicio S10 (Almacenes, Compras, +N más)"
-                                const base = toTitleCase(lcp.toLowerCase());
-                                const parts = cleaned.map(c => c.slice(lcp.length).replace(/^[\s-]+/, ''))
-                                    .filter(p => p.length > 1);
-                                const shownParts = parts.slice(0, MAX_SHOW);
-                                const extra = parts.length - shownParts.length;
-                                descripcion = `${base} (${shownParts.join(', ')}${extra > 0 ? ` +${extra} más` : ''})`;
-                            } else {
-                                const shown = cleaned.slice(0, MAX_SHOW);
-                                const remaining = cleaned.length - shown.length;
-                                descripcion = shown.join('; ') + (remaining > 0 ? ` (+${remaining} más)` : '');
-                            }
+                        const products = merged.filter(l => { const c = cleanLine(l); return c.length > 4 && /[a-záéíóúñ]{3,}/i.test(c); });
+                        if (products.length > 0) {
+                            const cleaned = products.map(cleanLine).map(toTitle).filter(d => d.length > 3);
+                            const shown = cleaned.slice(0, 3);
+                            const extra = cleaned.length - shown.length;
+                            descripcion = shown.join('; ') + (extra > 0 ? ` (+${extra} más)` : '');
                         }
                     }
+                    // Fallbacks de descripción
                     if (!descripcion) {
-                        const descMatch = fullText.match(/(?:DESCRIPCI[OÓ]N|DETALLE|CONCEPTO)[:\s\n]+([^\n]{5,120})/i);
-                        if (descMatch) descripcion = toTitleCase(descMatch[1].trim());
+                        const glosM = fullText.match(/[Gg]losa[:\s]+([^\n]{5,120})/);
+                        if (glosM) descripcion = toTitle(glosM[1].trim());
                     }
                     if (!descripcion) {
-                        const skipWords = /^(RUC|FECHA|TOTAL|IGV|SUB|IMPORTE|FACT|BOL|SERIE|N[°ú]|BASE|VALOR|OP\.|Son:)/i;
-                        descripcion = lines.find(l => l.length > 10 && !skipWords.test(l) && !/^\d/.test(l) && !/^S\//.test(l)) || file.name;
+                        const descM = fullText.match(/(?:DESCRIPCI[OÓ]N|DETALLE|CONCEPTO)[:\s\n]+([^\n]{5,120})/i);
+                        if (descM) descripcion = toTitle(descM[1].trim());
+                    }
+                    if (!descripcion) {
+                        const skip = /^(RUC|FECHA|TOTAL|IGV|SUB|IMPORTE|FACT|BOL|SERIE|N[°ú]|BASE|VALOR|OP\.|Son:|DOMICILIO|AV\.|JR\.|CAL\.)/i;
+                        descripcion = lines.find(l => l.length > 10 && !skip.test(l) && !/^\d/.test(l) && !/^S\//.test(l)) || file.name;
                     }
 
-                    console.log(`PDF [${file.name}]: RUC=${ruc} RS="${razonSocial}" Serie=${seriesNumber} Total=${total} IGV=${igv} Tipo=${type}`);
-                    console.log(`PDF descripcion: "${descripcion}"`);
+                    console.log(`PDF [${file.name}]: RUC=${ruc} RS="${razonSocial}" Serie=${seriesNumber} Total=${total} Tipo=${type}`);
 
                     if (total > 0) {
                         const expenseData = {
@@ -3417,13 +3581,11 @@
                             name: razonSocial || (ruc ? 'Extraído de PDF' : ''),
                             description: descripcion,
                             subtotal: parseFloat((subtotal || 0).toFixed(2)),
-                            igv: parseFloat((igv || 0).toFixed(2)),
-                            total: parseFloat((total || 0).toFixed(2)),
+                            igv:      parseFloat((igv     || 0).toFixed(2)),
+                            total:    parseFloat(total.toFixed(2)),
                             type, moneda: monedaPDF, pc: '', fileUrl: null,
-                            createdAt: serverTimestamp()
+                            tasaCambio: 1.000, createdAt: serverTimestamp()
                         };
-
-                        expenseData.tasaCambio = 1.000;
                         if (monedaPDF === 'USD') {
                             const tc = await fetchSunatExchangeRate(date);
                             if (tc) expenseData.tasaCambio = tc;
@@ -3433,34 +3595,23 @@
                         try {
                             const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
                             const fileRef = ref(storage, `caja_chica_comprobantes/${cajaId}/${fileName}`);
-                            const snapshot = await uploadBytes(fileRef, file);
-                            expenseData.fileUrl = await getDownloadURL(snapshot.ref);
+                            expenseData.fileUrl = await getDownloadURL((await uploadBytes(fileRef, file)).ref);
                         } catch (uploadErr) {
                             console.error('Error subiendo PDF a Storage:', uploadErr);
                         }
 
                         const newExpenseRef = doc(collection(db, 'cajasChicasActivas', cajaId, 'expenses'));
                         batch.set(newExpenseRef, expenseData);
-
-                        // Añadir localmente para prevenir duplicados en lote paralelo
                         expenses.push(expenseData);
-
                         processedCount++;
-                        extractionLogs.push({
-                            file: file.name, status: 'ok',
-                            detail: `${type} | ${seriesNumber || '?'} | ${razonSocial || ruc || '?'} | Total: ${total.toFixed(2)} | IGV: ${igv.toFixed(2)}`
-                        });
+                        extractionLogs.push({ file: file.name, status: 'ok', detail: `${type} | ${seriesNumber || '?'} | ${razonSocial || ruc || '?'} | Total: ${total.toFixed(2)} | IGV: ${igv.toFixed(2)}` });
                     } else {
-                        console.warn(`${file.name}: sin monto válido, se omite.`);
-                        extractionLogs.push({
-                            file: file.name, status: 'warn',
-                            detail: `Sin monto válido. RUC=${ruc || '?'} Serie=${seriesNumber || '?'} Tipo=${type}. Revisa manualmente.`
-                        });
+                        extractionLogs.push({ file: file.name, status: 'warn', detail: `Sin monto válido. RUC=${ruc || '?'} Serie=${seriesNumber || '?'} Tipo=${type}. Revisa manualmente.` });
                     }
 
                 } catch (error) {
-                    console.error(`Error procesando el PDF ${file.name}:`, error);
-                    extractionLogs.push({ file: file.name, status: 'err', detail: error.message });
+                    console.error(`Error procesando PDF ${file.name}:`, error);
+                    extractionLogs.push({ file: file.name, status: 'error', detail: error.message });
                 }
             }
 
@@ -3472,7 +3623,7 @@
                     if (duplicateCount > 0) msg += `\nSe omitieron ${duplicateCount} por ser duplicados.`;
                     alert(msg);
                 } else if (duplicateCount > 0) {
-                    alert(`Se omitieron los ${duplicateCount} PDF porque ya están registrados en esta caja (Duplicados).`);
+                    alert(`Se omitieron los ${duplicateCount} PDF porque ya están registrados (Duplicados).`);
                 } else {
                     alert('No se pudieron extraer montos válidos de los PDFs. Revise el log (📋 Logs).');
                 }
